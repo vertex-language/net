@@ -133,9 +133,14 @@ package main
 import "net/http"
 
 func main() async -> int32 {
-    let res = try await http.Get("http://127.0.0.1:8080/hello")
-    print("Status: \(res.StatusCode) body: \(res.BodyText())")
-    return 0
+    do {
+        let res = try await http.Get("http://127.0.0.1:8080/hello")
+        print("Status: \(res.StatusCode) body: \(res.BodyText())")
+        return 0
+    } catch {
+        print("HTTP request failed")
+        return 1
+    }
 }
 ```
 
@@ -147,9 +152,14 @@ package main
 import "net/http"
 
 func main() async -> int32 {
-    let res = try await http.Get("https://cloudflare.com/cdn-cgi/trace")
-    print("Status: \(res.StatusCode)\nBody:\n\(res.BodyText())")
-    return 0
+    do {
+        let res = try await http.Get("https://cloudflare.com/cdn-cgi/trace")
+        print("Status: \(res.StatusCode)\nBody:\n\(res.BodyText())")
+        return 0
+    } catch {
+        print("HTTPS request failed")
+        return 1
+    }
 }
 ```
 
