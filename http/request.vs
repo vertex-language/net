@@ -1,6 +1,6 @@
 package http
 
-import tcp
+import "net/tcp"
 
 public enum HttpError: Error {
     case malformedRequest

@@ -1,7 +1,7 @@
 // An echo server: receives datagrams and echoes them back to the sender.
 package main
 
-import udp
+import "net/udp"
 
 func main() async -> int32 {
     do {

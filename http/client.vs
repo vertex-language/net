@@ -1,6 +1,6 @@
 package http
 
-import tcp
+import "net/tcp"
 
 /// URL represents a parsed HTTP URL.
 public struct URL {

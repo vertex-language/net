@@ -7,7 +7,7 @@
 //     vsc run loopback
 package main
 
-import tcp
+import "net/tcp"
 
 var failures = 0
 

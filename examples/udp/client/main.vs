@@ -1,7 +1,7 @@
 // A client for the UDP echo server: sends a message and waits for the echo.
 package main
 
-import udp
+import "net/udp"
 
 func main() async -> int32 {
     do {

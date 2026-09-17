@@ -1,7 +1,7 @@
 package main
 
-import tcp
-import http
+import "net/tcp"
+import "net/http"
 
 var failures = 0
 

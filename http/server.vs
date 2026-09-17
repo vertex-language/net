@@ -1,6 +1,6 @@
 package http
 
-import tcp
+import "net/tcp"
 
 /// ResponseWriter provides an interface for constructing and sending an HTTP response.
 public struct ResponseWriter {

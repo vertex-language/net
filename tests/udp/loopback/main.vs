@@ -1,7 +1,7 @@
 // net/udp checked against itself over loopback sockets.
 package main
 
-import udp
+import "net/udp"
 
 var failures = 0
 

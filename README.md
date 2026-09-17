@@ -23,7 +23,7 @@ Standard networking library for the Vertex programming language, providing async
 ```swift
 package main
 
-import tcp
+import "net/tcp"
 
 func main() async -> int32 {
     let listener = try tcp.Listen(":8080")
@@ -48,7 +48,7 @@ func main() async -> int32 {
 ```swift
 package main
 
-import tcp
+import "net/tcp"
 
 func main() async -> int32 {
     let client = try await tcp.Connect(host: "127.0.0.1", port: 8080)
@@ -66,7 +66,7 @@ func main() async -> int32 {
 ```swift
 package main
 
-import udp
+import "net/udp"
 
 func main() async -> int32 {
     let socket = try udp.Bind(":9000")
@@ -85,7 +85,7 @@ func main() async -> int32 {
 ```swift
 package main
 
-import udp
+import "net/udp"
 
 func main() async -> int32 {
     let client = try udp.Bind("127.0.0.1:0")
@@ -104,8 +104,8 @@ func main() async -> int32 {
 ```swift
 package main
 
-import tcp
-import http
+import "net/tcp"
+import "net/http"
 
 func main() async -> int32 {
     let listener = try tcp.Listen(":8080")
@@ -130,7 +130,7 @@ func main() async -> int32 {
 ```swift
 package main
 
-import http
+import "net/http"
 
 func main() async -> int32 {
     let res = try await http.Get("http://127.0.0.1:8080/hello")

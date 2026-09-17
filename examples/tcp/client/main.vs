@@ -2,7 +2,7 @@
 // what comes back.
 package main
 
-import tcp
+import "net/tcp"
 
 func main() async -> int32 {
     do {

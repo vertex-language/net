@@ -1,6 +1,6 @@
 package http
 
-import tcp
+import "net/tcp"
 
 /// Response represents an HTTP response received by a client or sent by a server.
 public struct Response {

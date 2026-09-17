@@ -8,7 +8,7 @@
 // an `await` below and nowhere else.
 package main
 
-import tcp
+import "net/tcp"
 
 func serve(_ listener: borrowing tcp.TcpListener, _ connections: int) async {
     var left = connections
