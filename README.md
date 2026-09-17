@@ -12,7 +12,7 @@ Standard networking library for the Vertex programming language, providing async
 
 - **`net/tcp`**: Asynchronous stream connections and listeners (`tcp.Listen`, `tcp.Connect`, `tcp.TcpStream`, `tcp.TcpListener`).
 - **`net/udp`**: Asynchronous datagram communication and peer binding (`udp.Bind`, `udp.UdpSocket`).
-- **`net/http`**: HTTP/1.1 client and server over asynchronous TCP (`http.Get`, `http.Post`, `http.Client`, `http.ServeConn`, `http.Request`, `http.Response`).
+- **`net/http`**: HTTP/1.1 and HTTPS client and server over asynchronous TCP and TLS 1.3 (`http.Get`, `http.Post`, `http.Client`, `http.ServeConn`, `http.ServeTLSConn`, `http.Request`, `http.Response`).
 
 ---
 
@@ -135,6 +135,20 @@ import "net/http"
 func main() async -> int32 {
     let res = try await http.Get("http://127.0.0.1:8080/hello")
     print("Status: \(res.StatusCode) body: \(res.BodyText())")
+    return 0
+}
+```
+
+### HTTPS Client (TLS 1.3)
+
+```swift
+package main
+
+import "net/http"
+
+func main() async -> int32 {
+    let res = try await http.Get("https://cloudflare.com/cdn-cgi/trace")
+    print("Status: \(res.StatusCode)\nBody:\n\(res.BodyText())")
     return 0
 }
 ```

@@ -1,27 +1,46 @@
 package http
 
 import "net/tcp"
+import "crypto/tls"
 
-/// URL represents a parsed HTTP URL.
+/// URL represents a parsed HTTP or HTTPS URL.
 public struct URL {
+    public var Scheme: string
     public var Host: string
     public var Port: uint16
     public var Path: string
 
+    public init(scheme: string, host: string, port: uint16, path: string) {
+        self.Scheme = scheme
+        self.Host = host
+        self.Port = port
+        self.Path = path
+    }
+
     public init(host: string, port: uint16, path: string) {
+        self.Scheme = "http"
         self.Host = host
         self.Port = port
         self.Path = path
     }
 
     public static func Parse(_ url: string) throws -> URL {
+        let httpsPrefix = "https://"
         let httpPrefix = "http://"
         var urlBytes: [uint8] = []
         for b in url.utf8 { urlBytes.append(b) }
 
+        var scheme = "http"
         var offset = 0
-        if url.hasPrefix(httpPrefix) {
+        var defaultPort: uint16 = 80
+        if url.hasPrefix(httpsPrefix) {
+            scheme = "https"
+            offset = 8
+            defaultPort = 443
+        } else if url.hasPrefix(httpPrefix) {
+            scheme = "http"
             offset = 7
+            defaultPort = 80
         }
 
         // Find host[:port] and path
@@ -52,7 +71,7 @@ public struct URL {
         }
 
         var host = hostPortStr
-        var port: uint16 = 80
+        var port = defaultPort
         if colon >= 0 {
             host = asciiString(hpBytes, from: 0, to: colon)
             let portStr = asciiString(hpBytes, from: colon + 1, to: hpBytes.count)
@@ -62,26 +81,34 @@ public struct URL {
         if host.isEmpty {
             throw HttpError.invalidUrl
         }
-        return URL(host: host, port: port, path: path)
+        return URL(scheme: scheme, host: host, port: port, path: path)
     }
 }
 
-/// Client is an HTTP client for executing HTTP requests over TCP.
+/// Client is an HTTP and HTTPS client for executing requests over TCP or TLS.
 public struct Client {
-    public var TimeoutMs: int32 = 5000
+    public static let Default: Client = Client()
 
-    public init(timeoutMs: int32 = 5000) {
+    public var TimeoutMs: int32 = 5000
+    public var TLSConfig: tls.Config = tls.Config()
+
+    public init(timeoutMs: int32 = 5000, tlsConfig: tls.Config = tls.Config()) {
         self.TimeoutMs = timeoutMs
+        self.TLSConfig = tlsConfig
     }
 
-    /// Do sends an HTTP request and returns an HTTP response.
+    /// Do sends an HTTP request over plain TCP and returns an HTTP response.
     public func Do(_ req: Request, host: string, port: uint16) async throws -> Response {
         let stream = try await tcp.Connect(host: host, port: port)
         defer { stream.Close() }
 
         var finalReq = req
         if finalReq.Headers.Get("Host") == nil {
-            finalReq.Headers.Set("Host", "\(host):\(port)")
+            if port == 80 {
+                finalReq.Headers.Set("Host", host)
+            } else {
+                finalReq.Headers.Set("Host", "\(host):\(port)")
+            }
         }
         if finalReq.Headers.Get("User-Agent") == nil {
             finalReq.Headers.Set("User-Agent", "Vertex-HTTP/1.1")
@@ -97,31 +124,68 @@ public struct Client {
         return try await ReadResponse(from: stream)
     }
 
-    /// Get sends an HTTP GET request to the specified URL.
+    /// DoTLS sends an HTTPS request over an encrypted TLS 1.3 connection and returns an HTTP response.
+    public func DoTLS(_ req: Request, host: string, port: uint16, config: tls.Config = tls.Config()) async throws -> Response {
+        var cfg = config
+        if cfg.ServerName.isEmpty {
+            cfg.ServerName = host
+        }
+        var conn = try await tls.Dial(host: host, port: port, config: cfg)
+        defer { conn.Close() }
+
+        var finalReq = req
+        if finalReq.Headers.Get("Host") == nil {
+            if port == 443 {
+                finalReq.Headers.Set("Host", host)
+            } else {
+                finalReq.Headers.Set("Host", "\(host):\(port)")
+            }
+        }
+        if finalReq.Headers.Get("User-Agent") == nil {
+            finalReq.Headers.Set("User-Agent", "Vertex-HTTP/1.1")
+        }
+        if !finalReq.Body.isEmpty && finalReq.Headers.Get("Content-Length") == nil {
+            finalReq.Headers.Set("Content-Length", "\(finalReq.Body.count)")
+        }
+        if finalReq.Headers.Get("Connection") == nil {
+            finalReq.Headers.Set("Connection", "close")
+        }
+
+        try await finalReq.Write(to: &conn)
+        return try await ReadResponse(from: &conn)
+    }
+
+    /// Get sends an HTTP or HTTPS GET request to the specified URL.
     public func Get(_ url: string) async throws -> Response {
         let u = try URL.Parse(url)
         let req = Request(method: "GET", url: u.Path)
+        if u.Scheme == "https" {
+            return try await DoTLS(req, host: u.Host, port: u.Port, config: self.TLSConfig)
+        }
         return try await Do(req, host: u.Host, port: u.Port)
     }
 
-    /// Post sends an HTTP POST request with the specified body to the URL.
+    /// Post sends an HTTP or HTTPS POST request with the specified body to the URL.
     public func Post(_ url: string, contentType: string, body: [uint8]) async throws -> Response {
         let u = try URL.Parse(url)
         var req = Request(method: "POST", url: u.Path)
         req.Headers.Set("Content-Type", contentType)
         req.Body = body
+        if u.Scheme == "https" {
+            return try await DoTLS(req, host: u.Host, port: u.Port, config: self.TLSConfig)
+        }
         return try await Do(req, host: u.Host, port: u.Port)
     }
 }
 
 public let DefaultClient = Client()
 
-/// Get sends an HTTP GET request to url using the DefaultClient.
+/// Get sends an HTTP or HTTPS GET request to url using the DefaultClient.
 public func Get(_ url: string) async throws -> Response {
     return try await DefaultClient.Get(url)
 }
 
-/// Post sends an HTTP POST request to url using the DefaultClient.
+/// Post sends an HTTP or HTTPS POST request to url using the DefaultClient.
 public func Post(_ url: string, contentType: string, body: [uint8]) async throws -> Response {
     return try await DefaultClient.Post(url, contentType: contentType, body: body)
 }

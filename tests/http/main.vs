@@ -14,16 +14,46 @@ func check(_ ok: bool, _ what: string) {
     }
 }
 
+func stringContains(_ s: string, _ sub: string) -> bool {
+    var sBytes: [uint8] = []
+    for b in s.utf8 { sBytes.append(b) }
+    var subBytes: [uint8] = []
+    for b in sub.utf8 { subBytes.append(b) }
+    if subBytes.isEmpty { return true }
+    if sBytes.count < subBytes.count { return false }
+    var i = 0
+    while i <= sBytes.count - subBytes.count {
+        var match = true
+        var j = 0
+        while j < subBytes.count {
+            if sBytes[i + j] != subBytes[j] {
+                match = false
+                break
+            }
+            j += 1
+        }
+        if match { return true }
+        i += 1
+    }
+    return false
+}
+
 func testURL() {
     do {
         let u1 = try http.URL.Parse("http://127.0.0.1:8080/api/v1/users")
-        check(u1.Host == "127.0.0.1" && u1.Port == 8080 && u1.Path == "/api/v1/users", "URL.Parse with port and path")
+        check(u1.Scheme == "http" && u1.Host == "127.0.0.1" && u1.Port == 8080 && u1.Path == "/api/v1/users", "URL.Parse with port and path")
 
         let u2 = try http.URL.Parse("http://example.com")
-        check(u2.Host == "example.com" && u2.Port == 80 && u2.Path == "/", "URL.Parse default port 80 and slash")
+        check(u2.Scheme == "http" && u2.Host == "example.com" && u2.Port == 80 && u2.Path == "/", "URL.Parse default port 80 and slash")
 
         let u3 = try http.URL.Parse("http://localhost:3000/")
-        check(u3.Host == "localhost" && u3.Port == 3000 && u3.Path == "/", "URL.Parse localhost:3000/")
+        check(u3.Scheme == "http" && u3.Host == "localhost" && u3.Port == 3000 && u3.Path == "/", "URL.Parse localhost:3000/")
+
+        let u4 = try http.URL.Parse("https://cloudflare.com/cdn-cgi/trace")
+        check(u4.Scheme == "https" && u4.Host == "cloudflare.com" && u4.Port == 443 && u4.Path == "/cdn-cgi/trace", "URL.Parse https scheme and default port 443")
+
+        let u5 = try http.URL.Parse("https://127.0.0.1:8443/status")
+        check(u5.Scheme == "https" && u5.Host == "127.0.0.1" && u5.Port == 8443 && u5.Path == "/status", "URL.Parse https with custom port 8443")
     } catch {
         check(false, "URL.Parse threw error")
     }
@@ -103,11 +133,25 @@ func testRoundTrip() async {
     }
 }
 
+func testHTTPSLive() async {
+    print("=== net/http HTTPS Live Client ===")
+    do {
+        let res = try await http.Get("https://cloudflare.com/cdn-cgi/trace")
+        check(res.StatusCode == 200, "HTTPS GET status 200")
+        let body = res.BodyText()
+        check(stringContains(body, "visit_scheme=https"), "HTTPS response body confirms visit_scheme=https")
+        check(stringContains(body, "tls=TLSv1.3"), "HTTPS response body confirms tls=TLSv1.3")
+    } catch {
+        check(false, "HTTPS GET threw unexpected error")
+    }
+}
+
 func main() async -> int32 {
     print("=== net/http Test Suite ===")
     testURL()
     testHeaders()
     await testRoundTrip()
+    await testHTTPSLive()
     print(failures == 0 ? "All net/http tests passed!" : "\(failures) tests failed.")
     return int32(failures)
 }
