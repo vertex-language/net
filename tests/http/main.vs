@@ -133,16 +133,40 @@ func testRoundTrip() async {
     }
 }
 
-func testHTTPSLive() async {
-    print("=== net/http HTTPS Live Client ===")
+func testSerialization() {
+    var req = http.Request(method: "POST", url: "/submit")
+    req.Headers.Set("Content-Type", "application/json")
+    let payload = [uint8](repeating: 65, count: 4) // "AAAA"
+    req.Body = payload
+    let rawReq = req.Bytes()
+    check(rawReq.count > 0, "Request.Bytes non-empty")
+    let endIdx = http.Request.FindHeaderEnd(rawReq)
+    check(endIdx > 0, "Request.FindHeaderEnd found CRLF CRLF")
+
     do {
-        let res = try await http.Get("https://cloudflare.com/cdn-cgi/trace")
-        check(res.StatusCode == 200, "HTTPS GET status 200")
-        let body = res.BodyText()
-        check(stringContains(body, "visit_scheme=https"), "HTTPS response body confirms visit_scheme=https")
-        check(stringContains(body, "tls=TLSv1.3"), "HTTPS response body confirms tls=TLSv1.3")
+        let parsed = try http.Request.ParseHeaders(rawReq, headerEnd: endIdx)
+        check(parsed.Method == "POST", "parsed method is POST")
+        check(parsed.URL == "/submit", "parsed URL is /submit")
+        check(parsed.Headers.Get("content-type") == "application/json", "parsed header matches")
+        check(parsed.Body.count == 4 && parsed.Body[0] == 65, "parsed initial body matches")
     } catch {
-        check(false, "HTTPS GET threw unexpected error")
+        check(false, "Request.ParseHeaders threw error")
+    }
+
+    var res = http.Response(statusCode: 200)
+    res.Headers.Set("Server", "Vertex")
+    res.Body = payload
+    let rawRes = res.Bytes()
+    let resEndIdx = http.Response.FindHeaderEnd(rawRes)
+    check(resEndIdx > 0, "Response.FindHeaderEnd found CRLF CRLF")
+
+    do {
+        let parsedRes = try http.Response.ParseHeaders(rawRes, headerEnd: resEndIdx)
+        check(parsedRes.StatusCode == 200, "parsed response status 200")
+        check(parsedRes.Headers.Get("server") == "Vertex", "parsed response header matches")
+        check(parsedRes.Body.count == 4, "parsed response body matches")
+    } catch {
+        check(false, "Response.ParseHeaders threw error")
     }
 }
 
@@ -150,8 +174,8 @@ func main() async -> int32 {
     print("=== net/http Test Suite ===")
     testURL()
     testHeaders()
+    testSerialization()
     await testRoundTrip()
-    await testHTTPSLive()
     print(failures == 0 ? "All net/http tests passed!" : "\(failures) tests failed.")
     return int32(failures)
 }

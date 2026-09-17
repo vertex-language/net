@@ -1,7 +1,6 @@
 package http
 
 import "net/tcp"
-import "crypto/tls"
 
 /// ResponseWriter provides an interface for constructing and sending an HTTP response.
 public struct ResponseWriter {
@@ -51,28 +50,6 @@ public func ServeConn(stream: tcp.TcpStream, handle: (Request) async throws -> R
         }
         res.Body = writer.Body
         try await res.Write(to: stream)
-    } catch {
-        // Connection closed or error
-    }
-}
-
-/// ServeTLSConn handles a single HTTP client connection over an established TLS session.
-public func ServeTLSConn(conn: inout tls.Conn, handle: (Request) async throws -> ResponseWriter) async {
-    defer { conn.Close() }
-    do {
-        let req = try await ReadRequest(from: &conn)
-        var writer = try await handle(req)
-
-        var res = Response(statusCode: writer.StatusCode)
-        res.Headers = writer.Headers
-        if res.Headers.Get("Content-Length") == nil {
-            res.Headers.Set("Content-Length", "\(writer.Body.count)")
-        }
-        if res.Headers.Get("Connection") == nil {
-            res.Headers.Set("Connection", "close")
-        }
-        res.Body = writer.Body
-        try await res.Write(to: &conn)
     } catch {
         // Connection closed or error
     }

@@ -1,7 +1,6 @@
 package http
 
 import "net/tcp"
-import "crypto/tls"
 
 public enum HttpError: Error {
     case malformedRequest
@@ -66,8 +65,8 @@ public struct Request {
         return string(cString: chars)
     }
 
-    /// Write writes the HTTP request line, headers, and body to a stream.
-    public func Write(to stream: tcp.TcpStream) async throws {
+    /// HeaderText serializes the request line and headers in HTTP/1.1 format with trailing CRLF CRLF.
+    public func HeaderText() -> string {
         var text = "\(Method) \(URL) \(Proto)\r\n"
         var i = 0
         while i < Headers.entries.count {
@@ -76,26 +75,124 @@ public struct Request {
             i += 1
         }
         text += "\r\n"
-        try await stream.WriteText(text)
+        return text
+    }
+
+    /// Bytes serializes the entire HTTP request (request line, headers, and body) to wire bytes.
+    public func Bytes() -> [uint8] {
+        var out: [uint8] = []
+        let text = HeaderText()
+        for b in text.utf8 {
+            out.append(b)
+        }
+        var i = 0
+        while i < Body.count {
+            out.append(Body[i])
+            i += 1
+        }
+        return out
+    }
+
+    /// Write writes the HTTP request line, headers, and body to a stream.
+    public func Write(to stream: tcp.TcpStream) async throws {
+        try await stream.WriteText(HeaderText())
         if !Body.isEmpty {
             try await stream.Write(Body)
         }
     }
 
-    /// Write writes the HTTP request line, headers, and body to a TLS connection.
-    public func Write(to conn: inout tls.Conn) async throws {
-        var text = "\(Method) \(URL) \(Proto)\r\n"
-        var i = 0
-        while i < Headers.entries.count {
-            let e = Headers.entries[i]
-            text += "\(e.Key): \(e.Value)\r\n"
-            i += 1
+    /// FindHeaderEnd finds the start index of \r\n\r\n in raw bytes, or -1 if not found.
+    public static func FindHeaderEnd(_ raw: [uint8], from: int = 0) -> int {
+        if raw.count < 4 { return -1 }
+        var j = from
+        if j < 0 { j = 0 }
+        while j + 3 < raw.count {
+            if raw[j] == 13 && raw[j+1] == 10 && raw[j+2] == 13 && raw[j+3] == 10 {
+                return j
+            }
+            j += 1
         }
-        text += "\r\n"
-        try await conn.WriteText(text)
-        if !Body.isEmpty {
-            try await conn.Write(Body)
+        return -1
+    }
+
+    /// ParseHeaders parses a Request's method, URL, proto, headers, and any initial body bytes up to headerEnd.
+    public static func ParseHeaders(_ raw: [uint8], headerEnd: int) throws -> Request {
+        var lines: [string] = []
+        var lineStart = 0
+        var k = 0
+        while k < headerEnd {
+            if raw[k] == 13 && raw[k+1] == 10 {
+                lines.append(asciiString(raw, from: lineStart, to: k))
+                k += 2
+                lineStart = k
+            } else {
+                k += 1
+            }
         }
+        if lineStart < headerEnd {
+            lines.append(asciiString(raw, from: lineStart, to: headerEnd))
+        }
+
+        if lines.isEmpty {
+            throw HttpError.malformedRequest
+        }
+
+        let firstLine = lines[0]
+        var parts: [string] = []
+        var pStart = 0
+        var pIdx = 0
+        var flBytes: [uint8] = []
+        for b in firstLine.utf8 { flBytes.append(b) }
+        while pIdx < flBytes.count {
+            if flBytes[pIdx] == 32 {
+                parts.append(asciiString(flBytes, from: pStart, to: pIdx))
+                pIdx += 1
+                pStart = pIdx
+            } else {
+                pIdx += 1
+            }
+        }
+        if pStart < flBytes.count {
+            parts.append(asciiString(flBytes, from: pStart, to: flBytes.count))
+        }
+
+        if parts.count < 3 {
+            throw HttpError.malformedRequest
+        }
+
+        var req = Request(method: parts[0], url: parts[1], proto: parts[2])
+
+        var lineIdx = 1
+        while lineIdx < lines.count {
+            let line = lines[lineIdx]
+            var colon = -1
+            var cIdx = 0
+            for b in line.utf8 {
+                if b == 58 {
+                    colon = cIdx
+                    break
+                }
+                cIdx += 1
+            }
+            if colon > 0 {
+                var lBytes: [uint8] = []
+                for b in line.utf8 { lBytes.append(b) }
+                let key = trimSpaces(asciiString(lBytes, from: 0, to: colon))
+                let val = trimSpaces(asciiString(lBytes, from: colon + 1, to: lBytes.count))
+                req.Headers.Add(key, val)
+            }
+            lineIdx += 1
+        }
+
+        let bodyStart = headerEnd + 4
+        var bodyBytes: [uint8] = []
+        var bIdx = bodyStart
+        while bIdx < raw.count {
+            bodyBytes.append(raw[bIdx])
+            bIdx += 1
+        }
+        req.Body = bodyBytes
+        return req
     }
 }
 
@@ -115,227 +212,23 @@ public func ReadRequest(from stream: tcp.TcpStream) async throws -> Request {
             raw.append(buf[i])
             i += 1
         }
-        // Check for \r\n\r\n
-        if raw.count >= 4 {
-            var j = raw.count - n - 3
-            if j < 0 { j = 0 }
-            while j + 3 < raw.count {
-                if raw[j] == 13 && raw[j+1] == 10 && raw[j+2] == 13 && raw[j+3] == 10 {
-                    headerEnd = j
-                    break
-                }
-                j += 1
-            }
-        }
+        headerEnd = Request.FindHeaderEnd(raw, from: raw.count - n - 3)
     }
 
-    // Parse header lines
-    var lines: [string] = []
-    var lineStart = 0
-    var k = 0
-    while k < headerEnd {
-        if raw[k] == 13 && raw[k+1] == 10 {
-            lines.append(asciiString(raw, from: lineStart, to: k))
-            k += 2
-            lineStart = k
-        } else {
-            k += 1
-        }
-    }
-
-    if lines.isEmpty {
-        throw HttpError.malformedRequest
-    }
-
-    // First line: METHOD URL PROTO
-    let firstLine = lines[0]
-    var parts: [string] = []
-    var pStart = 0
-    var pIdx = 0
-    var flBytes: [uint8] = []
-    for b in firstLine.utf8 { flBytes.append(b) }
-    while pIdx < flBytes.count {
-        if flBytes[pIdx] == 32 {
-            parts.append(asciiString(flBytes, from: pStart, to: pIdx))
-            pIdx += 1
-            pStart = pIdx
-        } else {
-            pIdx += 1
-        }
-    }
-    if pStart < flBytes.count {
-        parts.append(asciiString(flBytes, from: pStart, to: flBytes.count))
-    }
-
-    if parts.count < 3 {
-        throw HttpError.malformedRequest
-    }
-
-    var req = Request(method: parts[0], url: parts[1], proto: parts[2])
-
-    // Headers
-    var lineIdx = 1
-    while lineIdx < lines.count {
-        let line = lines[lineIdx]
-        var colon = -1
-        var cIdx = 0
-        for b in line.utf8 {
-            if b == 58 { // ':'
-                colon = cIdx
-                break
-            }
-            cIdx += 1
-        }
-        if colon > 0 {
-            var lBytes: [uint8] = []
-            for b in line.utf8 { lBytes.append(b) }
-            let key = trimSpaces(asciiString(lBytes, from: 0, to: colon))
-            let val = trimSpaces(asciiString(lBytes, from: colon + 1, to: lBytes.count))
-            req.Headers.Add(key, val)
-        }
-        lineIdx += 1
-    }
-
-    // Body
-    let bodyStart = headerEnd + 4
-    var bodyBytes: [uint8] = []
-    var bIdx = bodyStart
-    while bIdx < raw.count {
-        bodyBytes.append(raw[bIdx])
-        bIdx += 1
-    }
+    var req = try Request.ParseHeaders(raw, headerEnd: headerEnd)
 
     if let clVal = req.Headers.Get("Content-Length") {
         let expectedLen = parseContentLength(clVal)
-        while bodyBytes.count < expectedLen {
+        while req.Body.count < expectedLen {
             let n = try await stream.Read(into: &buf)
             if n == 0 { break }
             var bi = 0
             while bi < n {
-                bodyBytes.append(buf[bi])
+                req.Body.append(buf[bi])
                 bi += 1
             }
         }
     }
 
-    req.Body = bodyBytes
-    return req
-}
-
-/// ReadRequest parses an HTTP/1.1 request from an incoming TLS connection.
-public func ReadRequest(from conn: inout tls.Conn) async throws -> Request {
-    var raw: [uint8] = []
-    var buf = [uint8](repeating: 0, count: 1024)
-    var headerEnd = -1
-
-    while headerEnd < 0 {
-        let n = try await conn.Read(into: &buf)
-        if n == 0 {
-            throw HttpError.connectionClosed
-        }
-        var i = 0
-        while i < n {
-            raw.append(buf[i])
-            i += 1
-        }
-        if raw.count >= 4 {
-            var j = raw.count - n - 3
-            if j < 0 { j = 0 }
-            while j + 3 < raw.count {
-                if raw[j] == 13 && raw[j+1] == 10 && raw[j+2] == 13 && raw[j+3] == 10 {
-                    headerEnd = j
-                    break
-                }
-                j += 1
-            }
-        }
-    }
-
-    var lines: [string] = []
-    var lineStart = 0
-    var k = 0
-    while k < headerEnd {
-        if raw[k] == 13 && raw[k+1] == 10 {
-            lines.append(asciiString(raw, from: lineStart, to: k))
-            k += 2
-            lineStart = k
-        } else {
-            k += 1
-        }
-    }
-
-    if lines.isEmpty {
-        throw HttpError.malformedRequest
-    }
-
-    let firstLine = lines[0]
-    var parts: [string] = []
-    var pStart = 0
-    var pIdx = 0
-    var flBytes: [uint8] = []
-    for b in firstLine.utf8 { flBytes.append(b) }
-    while pIdx < flBytes.count {
-        if flBytes[pIdx] == 32 {
-            parts.append(asciiString(flBytes, from: pStart, to: pIdx))
-            pIdx += 1
-            pStart = pIdx
-        } else {
-            pIdx += 1
-        }
-    }
-    if pStart < flBytes.count {
-        parts.append(asciiString(flBytes, from: pStart, to: flBytes.count))
-    }
-
-    if parts.count < 3 {
-        throw HttpError.malformedRequest
-    }
-
-    var req = Request(method: parts[0], url: parts[1], proto: parts[2])
-
-    var lineIdx = 1
-    while lineIdx < lines.count {
-        let line = lines[lineIdx]
-        var colon = -1
-        var cIdx = 0
-        for b in line.utf8 {
-            if b == 58 {
-                colon = cIdx
-                break
-            }
-            cIdx += 1
-        }
-        if colon > 0 {
-            var lBytes: [uint8] = []
-            for b in line.utf8 { lBytes.append(b) }
-            let key = trimSpaces(asciiString(lBytes, from: 0, to: colon))
-            let val = trimSpaces(asciiString(lBytes, from: colon + 1, to: lBytes.count))
-            req.Headers.Add(key, val)
-        }
-        lineIdx += 1
-    }
-
-    let bodyStart = headerEnd + 4
-    var bodyBytes: [uint8] = []
-    var bIdx = bodyStart
-    while bIdx < raw.count {
-        bodyBytes.append(raw[bIdx])
-        bIdx += 1
-    }
-
-    if let clVal = req.Headers.Get("Content-Length") {
-        let expectedLen = parseContentLength(clVal)
-        while bodyBytes.count < expectedLen {
-            let n = try await conn.Read(into: &buf)
-            if n == 0 { break }
-            var bi = 0
-            while bi < n {
-                bodyBytes.append(buf[bi])
-                bi += 1
-            }
-        }
-    }
-
-    req.Body = bodyBytes
     return req
 }
