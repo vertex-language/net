@@ -9,6 +9,7 @@ let package = Package(
     products: [
         .library(name: "net/tcp", targets: ["tcp"]),
         .library(name: "net/udp", targets: ["udp"]),
+        .library(name: "net/http", targets: ["http"]),
         .executable(name: "tcp-echo", targets: ["tcp_echo"]),
         .executable(name: "tcp-client", targets: ["tcp_client"]),
         .executable(name: "tcp-concurrent", targets: ["tcp_concurrent"]),
@@ -17,6 +18,7 @@ let package = Package(
         .executable(name: "tcp-loopback", targets: ["tcp_loopback"]),
         .executable(name: "udp-loopback", targets: ["udp_loopback"]),
         .executable(name: "loopback", targets: ["loopback"]),
+        .executable(name: "http-test", targets: ["http_test"]),
     ],
     targets: [
         // The operating system's TCP sockets, as a C ABI.
@@ -42,6 +44,17 @@ let package = Package(
             name: "udp",
             dependencies: ["cudp"],
             path: "udp"
+        ),
+        // The HTTP package: HTTP/1.1 client and server over TCP.
+        .target(
+            name: "http",
+            dependencies: ["tcp"],
+            path: "http"
+        ),
+        .executableTarget(
+            name: "http_test",
+            dependencies: ["http", "tcp"],
+            path: "tests/http"
         ),
         // TCP Examples
         .executableTarget(

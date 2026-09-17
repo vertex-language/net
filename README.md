@@ -12,6 +12,7 @@ Standard networking library for the Vertex programming language, providing async
 
 - **`net/tcp`**: Asynchronous stream connections and listeners (`tcp.Listen`, `tcp.Connect`, `tcp.TcpStream`, `tcp.TcpListener`).
 - **`net/udp`**: Asynchronous datagram communication and peer binding (`udp.Bind`, `udp.UdpSocket`).
+- **`net/http`**: HTTP/1.1 client and server over asynchronous TCP (`http.Get`, `http.Post`, `http.Client`, `http.ServeConn`, `http.Request`, `http.Response`).
 
 ---
 
@@ -98,6 +99,46 @@ func main() async -> int32 {
 }
 ```
 
+### HTTP Server & Client
+
+```swift
+package main
+
+import tcp
+import http
+
+func main() async -> int32 {
+    let listener = try tcp.Listen(":8080")
+    print("HTTP server listening on :8080")
+
+    while true {
+        let client = try await listener.Accept()
+        Task {
+            await http.ServeConn(stream: client) { req in
+                var w = http.ResponseWriter()
+                w.SetStatus(http.Status.OK)
+                w.SetHeader("Content-Type", "text/plain")
+                w.WriteText("Hello from Vertex HTTP Server!")
+                return w
+            }
+        }
+    }
+    return 0
+}
+```
+
+```swift
+package main
+
+import http
+
+func main() async -> int32 {
+    let res = try await http.Get("http://127.0.0.1:8080/hello")
+    print("Status: \(res.StatusCode) body: \(res.BodyText())")
+    return 0
+}
+```
+
 ---
 
 ## Running
@@ -111,6 +152,7 @@ vsc run loopback
 # Run individual test suites
 vsc run tcp-loopback
 vsc run udp-loopback
+vsc run http-test
 
 # Run example servers and clients
 vsc run tcp-echo
