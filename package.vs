@@ -33,6 +33,8 @@ let package = Package(
         .executable(name: "datachannel-test", targets: ["datachannel_test"]),
         .library(name: "net/webrtc", targets: ["webrtc"]),
         .executable(name: "webrtc-test", targets: ["webrtc_test"]),
+        .library(name: "net/quic", targets: ["quic"]),
+        .executable(name: "quic-test", targets: ["quic_test"]),
     ],
     targets: [
         // The operating system's TCP sockets, as a C ABI.
@@ -146,6 +148,17 @@ let package = Package(
             name: "webrtc_test",
             dependencies: ["webrtc", "ice", "sctp", "datachannel", "udp"],
             path: "tests/webrtc"
+        ),
+        // The QUIC package: RFC 9000 / RFC 9001 / RFC 9002 / RFC 9221.
+        .target(
+            name: "quic",
+            dependencies: ["udp"],
+            path: "quic"
+        ),
+        .executableTarget(
+            name: "quic_test",
+            dependencies: ["quic", "udp"],
+            path: "tests/quic"
         ),
         // TCP Examples
         .executableTarget(
