@@ -346,10 +346,19 @@ public struct Client {
     }
 
     /// Executes HTTP/3 over QUIC.
-    func executeH3(req: Request, host: string, port: uint16) async throws -> Response {
+    public func executeH3(req: Request, host: string, port: uint16) async throws -> Response {
+        var addr: SocketAddress = SocketAddress.v4(ip: host, port: port)
+        do {
+            let resolved = try udp.Resolve(host: host, port: port)
+            if !resolved.isEmpty {
+                addr = resolved[0]
+            }
+        } catch {
+        }
+
         var qConfig = quic.QuicConfig()
         qConfig.MaxIdleTimeoutMs = uint64(self.Config.TimeoutMs)
-        var qConn = try await quic.Connect(to: SocketAddress.v4(ip: host, port: port), config: qConfig)
+        var qConn = try await quic.Connect(to: addr, config: qConfig)
 
         var session = H3ClientSession(connection: qConn)
         try await session.StartSession()
@@ -361,6 +370,13 @@ public struct Client {
         let res = try session.ParseResponseStream(data: respBytes)
         try await qConn.Close(errorCode: 0)
         return res
+    }
+
+    /// GetH3 sends an HTTP/3 GET request directly over QUIC.
+    public func GetH3(_ url: string) async throws -> Response {
+        let u = try URL.Parse(url)
+        let req = Request(method: "GET", url: u.Path, version: HttpVersion.http3)
+        return try await self.executeH3(req: req, host: u.Host, port: u.Port)
     }
 
     /// Get sends an HTTP or HTTPS GET request to the specified URL.
@@ -448,3 +464,10 @@ public func Post(_ url: string, contentType: string, body: [uint8]) async throws
     var c = Client()
     return try await c.Post(url, contentType: contentType, body: body)
 }
+
+/// GetH3 sends an HTTP/3 GET request to url directly over QUIC.
+public func GetH3(_ url: string) async throws -> Response {
+    var c = Client()
+    return try await c.GetH3(url)
+}
+
