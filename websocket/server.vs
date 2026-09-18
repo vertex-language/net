@@ -62,7 +62,7 @@ public struct Server {
 
     /// Listens for WebSocket connections over plain TCP.
     public func Listen(on address: string,
-                       handler: @escaping (inout WebSocket) async throws -> Void) async throws {
+                       handler: @escaping (WebSocket) async throws -> Void) async throws {
         let listener = try await tcp.Listen(address)
         defer { listener.Close() }
 
@@ -88,7 +88,7 @@ public struct Server {
                     defer {
                         Task { try? await conn.Close(code: CloseCode.NormalClosure, reason: "") }
                     }
-                    try await handler(&conn)
+                    try await handler(conn)
                 } catch {
                     stream.Close()
                 }
@@ -100,7 +100,7 @@ public struct Server {
     public func ListenTLS(on address: string,
                           cert: string,
                           key: string,
-                          handler: @escaping (inout WebSocket) async throws -> Void) async throws {
+                          handler: @escaping (WebSocket) async throws -> Void) async throws {
         let listener = try await tcp.Listen(address)
         defer { listener.Close() }
 
@@ -132,7 +132,7 @@ public struct Server {
                     defer {
                         Task { try? await conn.Close(code: CloseCode.NormalClosure, reason: "") }
                     }
-                    try await handler(&conn)
+                    try await handler(conn)
                 } catch {
                     tlsConn.Close()
                 }
@@ -172,7 +172,7 @@ public struct WebSocketListener {
     }
 
     /// Serves incoming WebSocket connections using the provided handler.
-    public func Serve(handler: @escaping (inout WebSocket) async throws -> Void) async throws {
+    public func Serve(handler: @escaping (WebSocket) async throws -> Void) async throws {
         let subprotocols = self.Subprotocols
         while true {
             let stream = try await self.Listener.Accept()
@@ -195,7 +195,7 @@ public struct WebSocketListener {
                     defer {
                         Task { try? await conn.Close(code: CloseCode.NormalClosure, reason: "") }
                     }
-                    try await handler(&conn)
+                    try await handler(conn)
                 } catch {
                     stream.Close()
                 }
@@ -217,7 +217,7 @@ public func Listen(_ address: string, subprotocols: [string]) throws -> WebSocke
 }
 
 /// Starts listening on the specified address and serves connections with the handler.
-public func Listen(_ address: string, handler: @escaping (inout WebSocket) async throws -> Void) async throws {
+public func Listen(_ address: string, handler: @escaping (WebSocket) async throws -> Void) async throws {
     let wl = try Listen(address)
     defer { wl.Close() }
     try await wl.Serve(handler: handler)
