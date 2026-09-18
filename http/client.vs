@@ -436,7 +436,7 @@ public func ReadResponseTls(from conn: inout tls.Conn) async throws -> Response 
                 bi += 1
             }
         }
-    } else if res.Headers.Get("Transfer-Encoding") == nil && res.StatusCode != 204 && res.StatusCode != 304 {
+    } else if res.Headers.Get("Transfer-Encoding") == nil && (res.StatusCode < 100 || res.StatusCode >= 200) && res.StatusCode != 204 && res.StatusCode != 304 {
         while true {
             let n = try await conn.Read(into: &buf)
             if n == 0 { break }

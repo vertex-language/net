@@ -33,6 +33,8 @@ let package = Package(
         .executable(name: "webrtc-test", targets: ["webrtc_test"]),
         .library(name: "net/quic", targets: ["quic"]),
         .executable(name: "quic-test", targets: ["quic_test"]),
+        .library(name: "net/websocket", targets: ["websocket"]),
+        .executable(name: "websocket-test", targets: ["websocket_test"]),
     ],
     targets: [
         // The operating system's TCP sockets, as a C ABI.
@@ -146,6 +148,17 @@ let package = Package(
             name: "quic_test",
             dependencies: ["quic", "udp"],
             path: "tests/quic"
+        ),
+        // The WebSocket package: RFC 6455 over TCP or TLS.
+        .target(
+            name: "websocket",
+            dependencies: ["tcp", "http"],
+            path: "websocket"
+        ),
+        .executableTarget(
+            name: "websocket_test",
+            dependencies: ["websocket", "tcp", "http"],
+            path: "tests/websocket"
         ),
         // TCP Examples
         .executableTarget(
