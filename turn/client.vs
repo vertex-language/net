@@ -244,3 +244,11 @@ public func ParseDataIndication(_ msg: stun.Message) throws -> (data: [uint8], p
     let payload = stun.ParseData(dataAttr)
     return (data: payload, peerAddress: peer)
 }
+
+/// Connect initializes a TURN client by binding an ephemeral UDP socket and parsing the server address.
+public func Connect(server: string, username: string, password: string) throws -> Client {
+    let sock = try udp.Bind("0.0.0.0:0")
+    let serverAddr = try udp.SocketAddress.Parse(server)
+    return NewClient(socket: sock, serverAddress: serverAddr, username: username, password: password)
+}
+

@@ -263,6 +263,73 @@ public func WriteResponseTls(_ res: Response, to conn: inout tls.Conn) async thr
     }
 }
 
+/// HttpListener wraps an active TCP listener and serves HTTP connections.
+public struct HttpListener {
+    public var Listener: tcp.TcpListener
+    public var Config: ServerConfig
+
+    public init(listener: tcp.TcpListener, config: ServerConfig = ServerConfig()) {
+        self.Listener = listener
+        self.Config = config
+    }
+
+    /// Bound local port number.
+    public var Port: uint16 {
+        return self.Listener.LocalAddress.Port()
+    }
+
+    /// Bound local address formatted as "ip:port".
+    public var Address: string {
+        return self.Listener.LocalAddress.ToString()
+    }
+
+    /// Closes the listener socket.
+    public func Close() {
+        self.Listener.Close()
+    }
+
+    /// Accepts an incoming raw TCP stream.
+    public func Accept() async throws -> tcp.TcpStream {
+        return try await self.Listener.Accept()
+    }
+
+    /// Serves a single incoming connection and returns.
+    public func ServeOne(handler: @escaping (Request) async throws -> ResponseWriter) async throws {
+        let stream = try await self.Listener.Accept()
+        await ServeConn(stream: stream, handle: handler)
+    }
+
+    /// Accepts and handles incoming HTTP connections concurrently using the provided handler.
+    public func Serve(handler: @escaping (Request) async throws -> ResponseWriter) async throws {
+        while true {
+            let stream = try await self.Listener.Accept()
+            let h = handler
+            Task {
+                await ServeConn(stream: stream, handle: h)
+            }
+        }
+    }
+}
+
+/// Starts listening on the specified address and returns an HttpListener immediately.
+public func Listen(_ address: string) throws -> HttpListener {
+    let listener = try tcp.Listen(address)
+    return HttpListener(listener: listener)
+}
+
+/// Starts listening on the specified address with server configuration and returns an HttpListener immediately.
+public func Listen(_ address: string, config: ServerConfig) throws -> HttpListener {
+    let listener = try tcp.Listen(address)
+    return HttpListener(listener: listener, config: config)
+}
+
+/// Starts listening on the specified address and serves HTTP requests using the provided handler.
+public func Listen(_ address: string, handler: @escaping (Request) async throws -> ResponseWriter) async throws {
+    let hl = try Listen(address)
+    defer { hl.Close() }
+    try await hl.Serve(handler: handler)
+}
+
 /// Server provides multi-protocol HTTP serving over TCP and UDP.
 public struct Server {
     public var Config: ServerConfig
@@ -275,16 +342,10 @@ public struct Server {
 
     /// Listens on the specified address and serves requests.
     public func Listen(on address: string) async throws {
-        let listener = try await tcp.Listen(address)
-        defer { listener.Close() }
-
-        while true {
-            let stream = try await listener.Accept()
-            let h = self.Handler
-            Task {
-                await ServeConn(stream: stream, handle: h)
-            }
-        }
+        let l = try tcp.Listen(address)
+        let hl = HttpListener(listener: l, config: self.Config)
+        defer { hl.Close() }
+        try await hl.Serve(handler: self.Handler)
     }
 
     /// Listens on the specified address with TLS termination.
@@ -310,3 +371,4 @@ public struct Server {
         }
     }
 }
+

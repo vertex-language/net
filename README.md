@@ -83,11 +83,9 @@ func main() async -> int32 {
 package main
 
 import "net/quic"
-import "net/udp"
 
 func main() async -> int32 {
-    let serverAddr = SocketAddress.v4(ip: "127.0.0.1", port: 4433)
-    var conn = try await quic.Connect(to: serverAddr)
+    var conn = try await quic.Connect("127.0.0.1:4433")
     defer { conn.Close(errorCode: 0) }
 
     // Open a bidirectional stream
@@ -108,20 +106,26 @@ package main
 import "net/websocket"
 
 func main() async -> int32 {
-    do {
-        // Connect over plain TCP (ws://) or TLS 1.3 (wss://)
-        var ws = try await websocket.Connect("wss://ws.postman-echo.com/raw")
-        defer { try? await ws.Close() }
-
-        // Send and receive text messages
-        try await ws.SendText("Hello WebSocket!")
-        let msg = try await ws.Receive()
-        print("Received: \(msg.Text)")
-        return 0
-    } catch {
-        print("WebSocket error")
-        return 1
+    // 1. Standalone server with zero extra imports
+    Task {
+        try await websocket.Listen(":8080") { ws in
+            while true {
+                let msg = try await ws.Receive()
+                if msg.Type == websocket.MessageType.text {
+                    try await ws.SendText("Echo: " + msg.Text)
+                }
+            }
+        }
     }
+
+    // 2. Connect over plain TCP (ws://) or TLS 1.3 (wss://)
+    var ws = try await websocket.Connect("ws://127.0.0.1:8080")
+    defer { try? await ws.Close() }
+
+    try await ws.SendText("Hello WebSocket!")
+    let msg = try await ws.Receive()
+    print("Received: \(msg.Text)")
+    return 0
 }
 ```
 

@@ -9,11 +9,28 @@ public struct QuicListener {
     public var Config: QuicConfig
     public var IsClosed: bool
 
-    public init(socket: udp.UdpSocket, config: QuicConfig = QuicConfig()) {
+    public init(socket: udp.UdpSocket) {
+        self.Socket = socket
+        self.LocalAddress = socket.LocalAddress
+        self.Config = QuicConfig()
+        self.IsClosed = false
+    }
+
+    public init(socket: udp.UdpSocket, config: QuicConfig) {
         self.Socket = socket
         self.LocalAddress = socket.LocalAddress
         self.Config = config
         self.IsClosed = false
+    }
+
+    /// Bound local port number.
+    public var Port: uint16 {
+        return self.LocalAddress.Port()
+    }
+
+    /// Bound local address formatted as "ip:port".
+    public var Address: string {
+        return self.LocalAddress.ToString()
     }
 
     /// Accepts the next incoming QUIC connection.

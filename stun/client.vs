@@ -105,8 +105,36 @@ public struct Client {
     }
 }
 
+/// StunAddress represents a discovered reflexive or mapped address from a STUN server.
+public struct StunAddress {
+    public var Host: string
+    public var Port: uint16
+
+    public init(host: string, port: uint16) {
+        self.Host = host
+        self.Port = port
+    }
+
+    public init(address: udp.SocketAddress) {
+        self.Host = address.Host()
+        self.Port = address.Port()
+    }
+
+    public func ToString() -> string {
+        return "\(self.Host):\(self.Port)"
+    }
+}
+
 /// Discover sends a STUN binding request to server and returns the discovered public/reflexive address.
 public func Discover(server: string = "stun.cloudflare.com:3478", timeoutMs: int32 = 3000) async throws -> udp.SocketAddress {
     let client = Client(timeoutMs: timeoutMs)
     return try await client.Query(server: server)
 }
+
+/// DiscoverAddress sends a STUN binding request to server and returns the discovered reflexive address as a self-contained StunAddress.
+public func DiscoverAddress(server: string = "stun.cloudflare.com:3478", timeoutMs: int32 = 3000) async throws -> StunAddress {
+    let client = Client(timeoutMs: timeoutMs)
+    let addr = try await client.Query(server: server)
+    return StunAddress(address: addr)
+}
+

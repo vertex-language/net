@@ -73,6 +73,18 @@ public struct RTCPeerConnection {
         self.DtlsDecipher = dtls.RecordCipher(key: defaultKey, iv: defaultIv, epoch: 1)
     }
 
+    /// Creates an RTCPeerConnection with a default configuration and an autonomously bound UDP socket.
+    public static func Create() async throws -> RTCPeerConnection {
+        let cfg = RTCConfiguration()
+        return try await Create(configuration: cfg)
+    }
+
+    /// Creates an RTCPeerConnection with the specified configuration and an autonomously bound UDP socket.
+    public static func Create(configuration: RTCConfiguration) async throws -> RTCPeerConnection {
+        let sock = try udp.Bind(address: .v4(ip: "0.0.0.0", port: 0))
+        return RTCPeerConnection(socket: sock, configuration: configuration)
+    }
+
     /// Creates an RFC 8866 / RFC 9429 SDP offer.
     public mutating func CreateOffer() throws -> RTCSessionDescription {
         if self.SignalingState != RTCSignalingState.Stable {
@@ -273,4 +285,15 @@ public struct RTCPeerConnection {
 public func NewPeerConnection(socket: udp.UdpSocket, configuration: RTCConfiguration) -> RTCPeerConnection {
     return RTCPeerConnection(socket: socket, configuration: configuration)
 }
+
+/// Creates a new WebRTC PeerConnection with default configuration and autonomously bound socket.
+public func CreatePeerConnection() async throws -> RTCPeerConnection {
+    return try await RTCPeerConnection.Create()
+}
+
+/// Creates a new WebRTC PeerConnection with the specified configuration and autonomously bound socket.
+public func CreatePeerConnection(configuration: RTCConfiguration) async throws -> RTCPeerConnection {
+    return try await RTCPeerConnection.Create(configuration: configuration)
+}
+
 

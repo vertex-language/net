@@ -45,12 +45,25 @@ public struct RTCSessionDescription {
     }
 }
 
+public struct RTCDataChannelState {
+    public static let Connecting: int = 0
+    public static let Open: int = 1
+    public static let Closing: int = 2
+    public static let Closed: int = 3
+}
+
 public struct RTCIceServer {
     public var Urls: [string]
     public var Username: string
     public var Credential: string
 
-    public init(urls: [string], username: string = "", credential: string = "") {
+    public init(urls: [string]) {
+        self.Urls = urls
+        self.Username = ""
+        self.Credential = ""
+    }
+
+    public init(urls: [string], username: string, credential: string) {
         self.Urls = urls
         self.Username = username
         self.Credential = credential

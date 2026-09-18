@@ -2,8 +2,38 @@ package quic
 
 import "net/udp"
 
-/// Establishes an outbound QUIC connection to the specified remote address.
-public func Connect(to address: udp.SocketAddress, config: QuicConfig = QuicConfig()) async throws -> QuicConnection {
+/// Establishes an outbound QUIC connection to the specified remote address string ("host:port").
+public func Connect(_ address: string) async throws -> QuicConnection {
+    let cfg = QuicConfig()
+    return try await Connect(address, config: cfg)
+}
+
+/// Establishes an outbound QUIC connection to the specified remote address string and configuration.
+public func Connect(_ address: string, config: QuicConfig) async throws -> QuicConnection {
+    let parsed = try udp.SocketAddress.Parse(address)
+    return try await Connect(to: parsed, config: config)
+}
+
+/// Establishes an outbound QUIC connection to the specified host and port.
+public func Connect(host: string, port: uint16) async throws -> QuicConnection {
+    let cfg = QuicConfig()
+    return try await Connect(host: host, port: port, config: cfg)
+}
+
+/// Establishes an outbound QUIC connection to the specified host, port, and configuration.
+public func Connect(host: string, port: uint16, config: QuicConfig) async throws -> QuicConnection {
+    let parsed = try udp.SocketAddress.Parse("\(host):\(port)")
+    return try await Connect(to: parsed, config: config)
+}
+
+/// Establishes an outbound QUIC connection to the specified remote SocketAddress.
+public func Connect(to address: udp.SocketAddress) async throws -> QuicConnection {
+    let cfg = QuicConfig()
+    return try await Connect(to: address, config: cfg)
+}
+
+/// Establishes an outbound QUIC connection to the specified remote SocketAddress and configuration.
+public func Connect(to address: udp.SocketAddress, config: QuicConfig) async throws -> QuicConnection {
     let socket = try udp.Bind(address: .v4(ip: "0.0.0.0", port: 0))
 
     // Generate random Client Source Connection ID and Destination Connection ID
@@ -31,8 +61,38 @@ public func Connect(to address: udp.SocketAddress, config: QuicConfig = QuicConf
     return conn
 }
 
-/// Starts a QUIC listener bound to the specified local address.
-public func Listen(on address: udp.SocketAddress, config: QuicConfig = QuicConfig()) async throws -> QuicListener {
+/// Starts a QUIC listener bound to the specified string address ("host:port" or ":port").
+public func Listen(_ address: string) async throws -> QuicListener {
+    let cfg = QuicConfig()
+    return try await Listen(address, config: cfg)
+}
+
+/// Starts a QUIC listener bound to the specified string address and configuration.
+public func Listen(_ address: string, config: QuicConfig) async throws -> QuicListener {
+    let parsed = try udp.SocketAddress.Parse(address)
+    return try await Listen(on: parsed, config: config)
+}
+
+/// Starts a QUIC listener bound to the specified port on all interfaces.
+public func Listen(port: uint16) async throws -> QuicListener {
+    let cfg = QuicConfig()
+    return try await Listen(port: port, config: cfg)
+}
+
+/// Starts a QUIC listener bound to the specified port and configuration.
+public func Listen(port: uint16, config: QuicConfig) async throws -> QuicListener {
+    let parsed = try udp.SocketAddress.Parse(":\(port)")
+    return try await Listen(on: parsed, config: config)
+}
+
+/// Starts a QUIC listener bound to the specified local SocketAddress.
+public func Listen(on address: udp.SocketAddress) async throws -> QuicListener {
+    let cfg = QuicConfig()
+    return try await Listen(on: address, config: cfg)
+}
+
+/// Starts a QUIC listener bound to the specified local SocketAddress and configuration.
+public func Listen(on address: udp.SocketAddress, config: QuicConfig) async throws -> QuicListener {
     let socket = try udp.Bind(address: address)
     return QuicListener(socket: socket, config: config)
 }
