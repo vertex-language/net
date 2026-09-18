@@ -151,6 +151,39 @@ public struct Message {
         self.AddAttribute(Attribute(type: AttrMessageIntegrity, value: mac))
     }
 
+    /// Verifies the MESSAGE-INTEGRITY attribute against the provided HMAC key.
+    public func VerifyMessageIntegrity(key: [uint8]) -> bool {
+        var miIndex = -1
+        var expectedMac: [uint8] = []
+        var i = 0
+        while i < self.Attributes.count {
+            if self.Attributes[i].Type == AttrMessageIntegrity {
+                miIndex = i
+                expectedMac = self.Attributes[i].Value
+                break
+            }
+            i += 1
+        }
+        if miIndex < 0 || expectedMac.count != 20 {
+            return false
+        }
+
+        var prefixMsg = Message(type: self.Type, transactionId: self.TransactionId)
+        var j = 0
+        while j < miIndex {
+            prefixMsg.AddAttribute(self.Attributes[j])
+            j += 1
+        }
+
+        var raw = prefixMsg.Encode()
+        let totalLen = (raw.count - HeaderSize) + 24
+        raw[2] = uint8(totalLen >> 8)
+        raw[3] = uint8(totalLen & 0xFF)
+
+        let computedMac = hmac.Compute(key: key, message: raw, hash: .sha1)
+        return hmac.Equal(computedMac, expectedMac)
+    }
+
     /// Validates the FINGERPRINT attribute in an encoded STUN packet.
     public static func ValidateFingerprint(_ raw: [uint8]) -> bool {
         if raw.count < HeaderSize + 8 { return false }

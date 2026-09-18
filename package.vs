@@ -23,6 +23,10 @@ let package = Package(
         .executable(name: "https-test", targets: ["https_test"]),
         .library(name: "net/stun", targets: ["stun"]),
         .executable(name: "stun-test", targets: ["stun_test"]),
+        .library(name: "net/turn", targets: ["turn"]),
+        .executable(name: "turn-test", targets: ["turn_test"]),
+        .library(name: "net/ice", targets: ["ice"]),
+        .executable(name: "ice-test", targets: ["ice_test"]),
     ],
     targets: [
         // The operating system's TCP sockets, as a C ABI.
@@ -81,6 +85,28 @@ let package = Package(
             name: "stun_test",
             dependencies: ["stun", "udp"],
             path: "tests/stun"
+        ),
+        // The TURN package: RFC 8656 relay traversal.
+        .target(
+            name: "turn",
+            dependencies: ["stun", "udp"],
+            path: "turn"
+        ),
+        .executableTarget(
+            name: "turn_test",
+            dependencies: ["turn", "stun", "udp"],
+            path: "tests/turn"
+        ),
+        // The ICE package: RFC 8445 Interactive Connectivity Establishment.
+        .target(
+            name: "ice",
+            dependencies: ["stun", "turn", "udp"],
+            path: "ice"
+        ),
+        .executableTarget(
+            name: "ice_test",
+            dependencies: ["ice", "stun", "udp"],
+            path: "tests/ice"
         ),
         // TCP Examples
         .executableTarget(
