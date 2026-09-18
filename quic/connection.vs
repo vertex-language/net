@@ -352,3 +352,31 @@ public func CreateConnection(to remoteAddress: string, isClient: bool = true) th
     )
 }
 
+/// Creates a client and server connection pair bound to localhost on ephemeral ports.
+public func CreateLoopbackPair() throws -> (client: QuicConnection, server: QuicConnection) {
+    let s1 = try udp.Bind(address: .v4(ip: "127.0.0.1", port: 0))
+    let s2 = try udp.Bind(address: .v4(ip: "127.0.0.1", port: 0))
+
+    let clientCid: [uint8] = [0x43, 0x4c, 0x49, 0x01, 0x02, 0x03, 0x04, 0x05]
+    let serverCid: [uint8] = [0x53, 0x52, 0x56, 0x01, 0x02, 0x03, 0x04, 0x05]
+
+    let client = QuicConnection(
+        socket: s1,
+        remoteAddress: s2.LocalAddress,
+        localCid: clientCid,
+        remoteCid: serverCid,
+        isClient: true
+    )
+
+    let server = QuicConnection(
+        socket: s2,
+        remoteAddress: s1.LocalAddress,
+        localCid: serverCid,
+        remoteCid: clientCid,
+        isClient: false
+    )
+
+    return (client: client, server: server)
+}
+
+
