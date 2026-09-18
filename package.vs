@@ -61,15 +61,15 @@ let package = Package(
             dependencies: ["cudp"],
             path: "udp"
         ),
-        // The HTTP package: HTTP/1.1 client and server over TCP.
+        // The HTTP package: HTTP client and server (HTTP/1.1, HTTP/2, HTTP/3).
         .target(
             name: "http",
-            dependencies: ["tcp"],
+            dependencies: ["tcp", "udp", "quic"],
             path: "http"
         ),
         .executableTarget(
             name: "http_test",
-            dependencies: ["http", "tcp"],
+            dependencies: ["http", "tcp", "udp", "quic"],
             path: "tests/http"
         ),
         // The HTTPS package: HTTP over TLS 1.3.

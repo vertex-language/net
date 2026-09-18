@@ -69,3 +69,6 @@ public struct Header {
         entries = filtered
     }
 }
+
+public typealias Headers = Header
+

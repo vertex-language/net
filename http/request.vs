@@ -2,13 +2,6 @@ package http
 
 import "net/tcp"
 
-public enum HttpError: Error {
-    case malformedRequest
-    case malformedResponse
-    case connectionClosed
-    case invalidUrl
-}
-
 func asciiString(_ bytes: [uint8], from: int, to: int) -> string {
     var chars: [CChar] = []
     var i = from
@@ -48,6 +41,7 @@ func parseContentLength(_ val: string) -> int {
 public struct Request {
     public var Method: string
     public var URL: string
+    public var Version: HttpVersion = HttpVersion.http1_1
     public var Proto: string = "HTTP/1.1"
     public var Headers: Header = Header()
     public var Body: [uint8] = []
@@ -55,7 +49,15 @@ public struct Request {
     public init(method: string = "GET", url: string = "/", proto: string = "HTTP/1.1") {
         self.Method = method
         self.URL = url
+        self.Version = HttpVersion.http1_1
         self.Proto = proto
+    }
+
+    public init(method: string, url: string, version: HttpVersion) {
+        self.Method = method
+        self.URL = url
+        self.Version = version
+        self.Proto = version.Name
     }
 
     public func BodyText() -> string {

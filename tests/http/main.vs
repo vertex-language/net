@@ -2,6 +2,7 @@ package main
 
 import "net/tcp"
 import "net/http"
+import "net/quic"
 
 var failures = 0
 
@@ -170,11 +171,200 @@ func testSerialization() {
     }
 }
 
+func testHttpTypes() {
+    let v1 = http.HttpVersion.http1_1
+    let v2 = http.HttpVersion.http2
+    let v3 = http.HttpVersion.http3
+    check(v1 != v2 && v2 != v3, "HttpVersion enum distinct")
+
+    var req = http.Request(method: "GET", url: "/status", version: http.HttpVersion.http2)
+    check(req.Version == http.HttpVersion.http2, "Request version is HTTP/2")
+
+    var res = http.Response(statusCode: 200, version: http.HttpVersion.http3)
+    res.SetBodyText("Pure Vertex HTTP/3")
+    check(res.Version == http.HttpVersion.http3, "Response version is HTTP/3")
+    check(res.Text == "Pure Vertex HTTP/3", "Response Text property matches")
+
+    var rw = http.ResponseWriter()
+    rw.SetStatus(201)
+    rw.SetHeader("X-Vertex", "MultiProtocol")
+    rw.WriteText("Created")
+    check(rw.StatusCode == 201, "ResponseWriter status code")
+    check(rw.Headers.Get("x-vertex") == "MultiProtocol", "ResponseWriter headers")
+    check(rw.Body.count == 7, "ResponseWriter body count")
+}
+
+func testAltSvc() {
+    let headerVal = "h3=\":443\"; ma=2592000, h3-29=\":443\"; ma=86400"
+    let services = http.ParseAltSvcHeader(headerVal, defaultHost: "example.com")
+    check(services.count == 2, "ParseAltSvcHeader found 2 services")
+    if services.count >= 2 {
+        check(services[0].Protocol == "h3" && services[0].Port == 443 && services[0].MaxAgeSeconds == 2592000, "AltSvc service 0 parsed")
+        check(services[1].Protocol == "h3-29" && services[1].Port == 443 && services[1].MaxAgeSeconds == 86400, "AltSvc service 1 parsed")
+    }
+
+    var cache = http.AltSvcCache()
+    var entry = http.AltSvcService(proto: "h3", host: "example.com", port: 443, maxAgeSeconds: 86400)
+    cache.Set(origin: "example.com:443", service: entry)
+
+    if let cached = cache.Get(origin: "example.com:443", protocolName: "h3") {
+        check(cached.Port == 443 && cached.Protocol == "h3", "AltSvcCache hit")
+    } else {
+        check(false, "AltSvcCache miss")
+    }
+
+    check(cache.Get(origin: "other.com:443", protocolName: "h3") == nil, "AltSvcCache negative lookup")
+    cache.Clear()
+    check(cache.Get(origin: "example.com:443", protocolName: "h3") == nil, "AltSvcCache cleared")
+}
+
+func testHpack() {
+    var enc = http.HpackEncoder()
+    var dec = http.HpackDecoder()
+
+    var headers: [http.HeaderEntry] = [
+        http.HeaderEntry(key: ":method", value: "GET"),
+        http.HeaderEntry(key: ":path", value: "/index.html"),
+        http.HeaderEntry(key: ":scheme", value: "https"),
+        http.HeaderEntry(key: ":authority", value: "vertex.lang"),
+        http.HeaderEntry(key: "x-custom", value: "pure-vertex")
+    ]
+
+    let encoded = enc.EncodeHeaders(headers)
+    check(!encoded.isEmpty, "HPACK encoded non-empty")
+
+    do {
+        let decoded = try dec.DecodeHeaders(data: encoded)
+        check(decoded.count == 5, "HPACK decoded 5 headers")
+
+        var methodFound = false
+        var pathFound = false
+        var customFound = false
+        var i = 0
+        while i < decoded.count {
+            if decoded[i].Key == ":method" && decoded[i].Value == "GET" { methodFound = true }
+            if decoded[i].Key == ":path" && decoded[i].Value == "/index.html" { pathFound = true }
+            if decoded[i].Key == "x-custom" && decoded[i].Value == "pure-vertex" { customFound = true }
+            i += 1
+        }
+        check(methodFound, "HPACK decoded :method")
+        check(pathFound, "HPACK decoded :path")
+        check(customFound, "HPACK decoded custom header")
+    } catch {
+        check(false, "HPACK DecodeHeaders threw error")
+    }
+}
+
+func testH2Framing() {
+    let settings = [
+        http.H2Setting(identifier: http.H2SettingId.MaxConcurrentStreams, value: 100),
+        http.H2Setting(identifier: http.H2SettingId.InitialWindowSize, value: 65535)
+    ]
+    let settingsFrame = http.BuildH2SettingsFrame(settings: settings, ack: false)
+    check(settingsFrame.count == 21, "H2 SETTINGS frame length matches (9-byte header + 12-byte payload)")
+
+    do {
+        let header = try http.ParseH2FrameHeader(data: settingsFrame, offset: 0)
+        check(header.Length == 12, "H2 parsed header length")
+        check(header.Type == http.H2FrameType.Settings, "H2 parsed header type")
+        check(header.Flags == 0, "H2 parsed header flags")
+        check(header.StreamId == 0, "H2 parsed header stream ID")
+    } catch {
+        check(false, "ParseH2FrameHeader threw error")
+    }
+
+    let pingData: [uint8] = [1, 2, 3, 4, 5, 6, 7, 8]
+    let pingFrame = http.BuildH2Ping(opaqueData: pingData, ack: false)
+    check(pingFrame.count == 17, "H2 PING frame length is 17")
+
+    let wuFrame = http.BuildH2WindowUpdate(streamId: 0, increment: 1048576)
+    check(wuFrame.count == 13, "H2 WINDOW_UPDATE frame length is 13")
+
+    let rstFrame = http.BuildH2RstStream(streamId: 1, errorCode: 8)
+    check(rstFrame.count == 13, "H2 RST_STREAM frame length is 13")
+
+    var session = http.H2ClientSession()
+    let handshake = session.StartHandshake()
+    check(handshake.count >= 24, "H2ClientSession StartHandshake includes preface and settings")
+
+    var req = http.Request(method: "GET", url: "/test")
+    req.Headers.Set("user-agent", "vertex-test")
+    let reqFrames = session.CreateRequestFrames(req: req, scheme: "https", authority: "localhost")
+    check(!reqFrames.isEmpty, "H2ClientSession CreateRequestFrames non-empty")
+}
+
+func testQpackAndH3Framing() {
+    var qenc = http.QpackEncoder()
+    var qdec = http.QpackDecoder()
+
+    var headers: [http.HeaderEntry] = [
+        http.HeaderEntry(key: ":method", value: "GET"),
+        http.HeaderEntry(key: ":path", value: "/h3"),
+        http.HeaderEntry(key: ":scheme", value: "https"),
+        http.HeaderEntry(key: "user-agent", value: "vertex-h3")
+    ]
+    let encFieldSec = qenc.EncodeHeaders(headers)
+    check(!encFieldSec.isEmpty, "QPACK EncodeHeaders non-empty")
+
+    do {
+        let decHeaders = try qdec.DecodeHeaders(data: encFieldSec)
+        check(decHeaders.count == 4, "QPACK decoded 4 headers")
+
+        var foundMethod = false
+        var foundPath = false
+        var foundUa = false
+        var i = 0
+        while i < decHeaders.count {
+            if decHeaders[i].Key == ":method" && decHeaders[i].Value == "GET" { foundMethod = true }
+            if decHeaders[i].Key == ":path" && decHeaders[i].Value == "/h3" { foundPath = true }
+            if decHeaders[i].Key == "user-agent" && decHeaders[i].Value == "vertex-h3" { foundUa = true }
+            i += 1
+        }
+        check(foundMethod, "QPACK decoded :method")
+        check(foundPath, "QPACK decoded :path")
+        check(foundUa, "QPACK decoded user-agent")
+    } catch {
+        check(false, "QPACK DecodeHeaders threw error")
+    }
+
+    do {
+        let v1 = quic.EncodeVarint(25)
+        check(v1.count == 1 && v1[0] == 25, "H3 Varint 1-byte encode")
+        let dec1 = try quic.DecodeVarint(v1, offset: 0)
+        check(dec1.Value == 25 && dec1.BytesRead == 1, "H3 Varint 1-byte decode")
+
+        let v2 = quic.EncodeVarint(15213)
+        check(v2.count == 2, "H3 Varint 2-byte encode")
+        let dec2 = try quic.DecodeVarint(v2, offset: 0)
+        check(dec2.Value == 15213 && dec2.BytesRead == 2, "H3 Varint 2-byte decode")
+    } catch {
+        check(false, "quic.DecodeVarint threw error")
+    }
+
+    let dataPayload: [uint8] = [72, 69, 76, 76, 79]
+    let h3FrameBytes = http.BuildH3Frame(type: http.H3FrameType.Data, payload: dataPayload)
+    check(!h3FrameBytes.isEmpty, "H3 BuildH3Frame non-empty")
+
+    do {
+        let parsedFrame = try http.ParseH3Frame(data: h3FrameBytes, offset: 0)
+        check(parsedFrame.BytesRead == h3FrameBytes.count, "H3 ParseH3Frame consumed all bytes")
+        check(parsedFrame.Type == http.H3FrameType.Data, "H3 ParseH3Frame type is DATA")
+        check(parsedFrame.Payload.count == 5, "H3 ParseH3Frame payload length is 5")
+    } catch {
+        check(false, "ParseH3Frame threw error")
+    }
+}
+
 func main() async -> int32 {
     print("=== net/http Test Suite ===")
     testURL()
     testHeaders()
     testSerialization()
+    testHttpTypes()
+    testAltSvc()
+    testHpack()
+    testH2Framing()
+    testQpackAndH3Framing()
     await testRoundTrip()
     print(failures == 0 ? "All net/http tests passed!" : "\(failures) tests failed.")
     return int32(failures)

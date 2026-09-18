@@ -6,6 +6,7 @@ import "net/tcp"
 public struct Response {
     public var StatusCode: int32 = 200
     public var Status: string = "200 OK"
+    public var Version: HttpVersion = HttpVersion.http1_1
     public var Proto: string = "HTTP/1.1"
     public var Headers: Header = Header()
     public var Body: [uint8] = []
@@ -13,14 +14,31 @@ public struct Response {
     public init(statusCode: int32 = 200, proto: string = "HTTP/1.1") {
         self.StatusCode = statusCode
         self.Status = "\(statusCode) \(StatusText(statusCode))"
+        self.Version = HttpVersion.http1_1
         self.Proto = proto
     }
 
+    public init(statusCode: int32, version: HttpVersion) {
+        self.StatusCode = statusCode
+        self.Status = "\(statusCode) \(StatusText(statusCode))"
+        self.Version = version
+        self.Proto = version.Name
+    }
+
+    /// Convenience getter decoding body bytes as UTF-8 string.
+    public var Text: string {
+        return string(decoding: self.Body, as: UTF8.self)
+    }
+
     public func BodyText() -> string {
-        var chars: [CChar] = []
-        for b in Body { chars.append(CChar(truncatingIfNeeded: b)) }
-        chars.append(0)
-        return string(cString: chars)
+        return self.Text
+    }
+
+    /// Sets the response body to the UTF-8 bytes of text.
+    public mutating func SetBodyText(_ text: string) {
+        var bytes: [uint8] = []
+        for b in text.utf8 { bytes.append(b) }
+        self.Body = bytes
     }
 
     /// StatusLine returns the HTTP status line including trailing CRLF.
