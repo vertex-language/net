@@ -306,6 +306,26 @@ public struct QuicConnection {
         return frames
     }
 
+    /// Bound local port number.
+    public var Port: uint16 {
+        return self.Socket.LocalAddress.Port()
+    }
+
+    /// Bound local address formatted as "ip:port".
+    public var Address: string {
+        return self.Socket.LocalAddress.ToString()
+    }
+
+    /// Receives an inbound datagram from the socket, decrypts it, and processes frames.
+    public mutating func ReceivePacket() async throws -> [QuicFrame] {
+        var buf = [uint8](repeating: 0, count: 2048)
+        let (n, _) = try await self.Socket.ReceiveFrom(into: &buf)
+        var rawPkt: [uint8] = []
+        var bi = 0
+        while bi < n { rawPkt.append(buf[bi]); bi += 1 }
+        return try self.ProcessInboundDatagram(rawPkt)
+    }
+
     /// Closes the QUIC connection cleanly by transmitting a CONNECTION_CLOSE frame.
     public mutating func Close(errorCode: uint64 = 0) async throws {
         if self.IsClosed { return }
@@ -313,5 +333,22 @@ public struct QuicConnection {
 
         let closeFrame = QuicFrame.connectionClose(ConnectionCloseData(isApp: true, errorCode: errorCode, frameType: 0))
         try await self.SendPacket(frames: [closeFrame], packetType: QuicPacketType.OneRtt)
+        self.Socket.Close()
     }
 }
+
+/// Creates a new QuicConnection with an autonomously bound UDP socket and resolved string address.
+public func CreateConnection(to remoteAddress: string, isClient: bool = true) throws -> QuicConnection {
+    let socket = try udp.Bind("0.0.0.0:0")
+    let parsed = try udp.SocketAddress.Parse(remoteAddress)
+    let clientCid: [uint8] = [0x43, 0x4c, 0x49, 0x01, 0x02, 0x03, 0x04, 0x05]
+    let serverCid: [uint8] = [0x53, 0x52, 0x56, 0x01, 0x02, 0x03, 0x04, 0x05]
+    return QuicConnection(
+        socket: socket,
+        remoteAddress: parsed,
+        localCid: isClient ? clientCid : serverCid,
+        remoteCid: isClient ? serverCid : clientCid,
+        isClient: isClient
+    )
+}
+
