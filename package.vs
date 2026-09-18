@@ -10,7 +10,6 @@ let package = Package(
         .library(name: "net/tcp", targets: ["tcp"]),
         .library(name: "net/udp", targets: ["udp"]),
         .library(name: "net/http", targets: ["http"]),
-        .library(name: "net/https", targets: ["https"]),
         .executable(name: "tcp-echo", targets: ["tcp_echo"]),
         .executable(name: "tcp-client", targets: ["tcp_client"]),
         .executable(name: "tcp-concurrent", targets: ["tcp_concurrent"]),
@@ -20,7 +19,6 @@ let package = Package(
         .executable(name: "udp-loopback", targets: ["udp_loopback"]),
         .executable(name: "loopback", targets: ["loopback"]),
         .executable(name: "http-test", targets: ["http_test"]),
-        .executable(name: "https-test", targets: ["https_test"]),
         .library(name: "net/stun", targets: ["stun"]),
         .executable(name: "stun-test", targets: ["stun_test"]),
         .library(name: "net/turn", targets: ["turn"]),
@@ -71,17 +69,6 @@ let package = Package(
             name: "http_test",
             dependencies: ["http", "tcp", "udp", "quic"],
             path: "tests/http"
-        ),
-        // The HTTPS package: HTTP over TLS 1.3.
-        .target(
-            name: "https",
-            dependencies: ["http", "tcp"],
-            path: "https"
-        ),
-        .executableTarget(
-            name: "https_test",
-            dependencies: ["https", "http", "tcp"],
-            path: "tests/https"
         ),
         // The STUN package: RFC 8489 NAT traversal.
         .target(
