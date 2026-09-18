@@ -142,21 +142,28 @@ public func NewRelayCandidate(foundation: string,
 /// Parses an RFC 8839 / RFC 8445 candidate attribute line from an SDP description.
 public func ParseSDPLine(_ line: string) -> Candidate? {
     var raw = line
-    // Strip leading "a=" or "candidate:" if present
-    if raw.hasPrefix("a=candidate:") {
-        var bytes: [uint8] = []
-        for b in raw.utf8 { bytes.append(b) }
-        var slice: [uint8] = []
-        var i = 12
-        while i < bytes.count { slice.append(bytes[i]); i += 1 }
-        raw = string(decoding: slice, as: UTF8.self)
-    } else if raw.hasPrefix("candidate:") {
-        var bytes: [uint8] = []
-        for b in raw.utf8 { bytes.append(b) }
-        var slice: [uint8] = []
-        var i = 10
-        while i < bytes.count { slice.append(bytes[i]); i += 1 }
-        raw = string(decoding: slice, as: UTF8.self)
+    // Strip leading "a=" and/or "candidate:" if present
+    var stripped = true
+    while stripped {
+        stripped = false
+        if raw.hasPrefix("a=") {
+            var bytes: [uint8] = []
+            for b in raw.utf8 { bytes.append(b) }
+            var slice: [uint8] = []
+            var i = 2
+            while i < bytes.count { slice.append(bytes[i]); i += 1 }
+            raw = string(decoding: slice, as: UTF8.self)
+            stripped = true
+        }
+        if raw.hasPrefix("candidate:") {
+            var bytes: [uint8] = []
+            for b in raw.utf8 { bytes.append(b) }
+            var slice: [uint8] = []
+            var i = 10
+            while i < bytes.count { slice.append(bytes[i]); i += 1 }
+            raw = string(decoding: slice, as: UTF8.self)
+            stripped = true
+        }
     }
 
     // Tokenize by space

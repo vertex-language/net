@@ -27,6 +27,12 @@ let package = Package(
         .executable(name: "turn-test", targets: ["turn_test"]),
         .library(name: "net/ice", targets: ["ice"]),
         .executable(name: "ice-test", targets: ["ice_test"]),
+        .library(name: "net/sctp", targets: ["sctp"]),
+        .executable(name: "sctp-test", targets: ["sctp_test"]),
+        .library(name: "net/datachannel", targets: ["datachannel"]),
+        .executable(name: "datachannel-test", targets: ["datachannel_test"]),
+        .library(name: "net/webrtc", targets: ["webrtc"]),
+        .executable(name: "webrtc-test", targets: ["webrtc_test"]),
     ],
     targets: [
         // The operating system's TCP sockets, as a C ABI.
@@ -107,6 +113,39 @@ let package = Package(
             name: "ice_test",
             dependencies: ["ice", "stun", "udp"],
             path: "tests/ice"
+        ),
+        // The SCTP package: RFC 4960 / RFC 8261 Stream Control Transmission Protocol.
+        .target(
+            name: "sctp",
+            dependencies: [],
+            path: "sctp"
+        ),
+        .executableTarget(
+            name: "sctp_test",
+            dependencies: ["sctp"],
+            path: "tests/sctp"
+        ),
+        // The DataChannel package: RFC 8831 / RFC 8832 WebRTC Data Channels.
+        .target(
+            name: "datachannel",
+            dependencies: ["sctp"],
+            path: "datachannel"
+        ),
+        .executableTarget(
+            name: "datachannel_test",
+            dependencies: ["datachannel", "sctp"],
+            path: "tests/datachannel"
+        ),
+        // The WebRTC package: RFC 9429 PeerConnection, JSEP, and DataChannels.
+        .target(
+            name: "webrtc",
+            dependencies: ["ice", "sctp", "datachannel", "udp", "stun"],
+            path: "webrtc"
+        ),
+        .executableTarget(
+            name: "webrtc_test",
+            dependencies: ["webrtc", "ice", "sctp", "datachannel", "udp"],
+            path: "tests/webrtc"
         ),
         // TCP Examples
         .executableTarget(
