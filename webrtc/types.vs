@@ -86,15 +86,15 @@ public enum WebRtcError: Error {
 
 public struct InboundKind {
     public static let None: int = 0
-    public static let Text: int = 1
-    public static let Binary: int = 2
-    public static let AckResponseNeeded: int = 3
+    public static let AckResponseNeeded: int = 1
+    public static let Text: int = 2
+    public static let Binary: int = 3
 }
 
 public struct RTCInboundKind {
     public static let None: int = 0
-    public static let Text: int = 1
-    public static let Binary: int = 2
-    public static let AckResponseNeeded: int = 3
+    public static let AckResponseNeeded: int = 1
+    public static let Text: int = 2
+    public static let Binary: int = 3
 }
 
