@@ -20,6 +20,7 @@
     #include <fcntl.h>
     #include <poll.h>
     #include <errno.h>
+    #include <ifaddrs.h>
     #define CLOSE_SOCKET(s) ::close(s)
     #define GET_LAST_ERROR() errno
 #endif
@@ -495,6 +496,54 @@ int32_t cudp_resolve(const char* host, int32_t port, char* ips_out, int32_t ip_m
 
 int32_t cudp_last_error(void) {
     return GET_LAST_ERROR();
+}
+
+int32_t cudp_get_interfaces(char* names_out, int32_t name_max_len,
+                           char* ips_out, int32_t ip_max_len,
+                           int32_t max_results,
+                           int32_t* families_out,
+                           int32_t* flags_out) {
+#if !defined(_WIN32)
+    init_network();
+    struct ifaddrs* ifap = nullptr;
+    if (getifaddrs(&ifap) != 0) {
+        return map_error(GET_LAST_ERROR());
+    }
+
+    int written = 0;
+    for (struct ifaddrs* cur = ifap; cur != nullptr && written < max_results; cur = cur->ifa_next) {
+        if (!cur->ifa_addr) continue;
+        int family = cur->ifa_addr->sa_family;
+        if (family != AF_INET && family != AF_INET6) continue;
+
+        char* name_slot = names_out + written * name_max_len;
+        strncpy(name_slot, cur->ifa_name ? cur->ifa_name : "", name_max_len - 1);
+        name_slot[name_max_len - 1] = '\0';
+
+        char* ip_slot = ips_out + written * ip_max_len;
+        if (family == AF_INET) {
+            auto* v4 = reinterpret_cast<struct sockaddr_in*>(cur->ifa_addr);
+            inet_ntop(AF_INET, &(v4->sin_addr), ip_slot, ip_max_len);
+            families_out[written] = 4;
+        } else {
+            auto* v6 = reinterpret_cast<struct sockaddr_in6*>(cur->ifa_addr);
+            inet_ntop(AF_INET6, &(v6->sin6_addr), ip_slot, ip_max_len);
+            families_out[written] = 6;
+        }
+
+        int32_t flags = 0;
+        if (cur->ifa_flags & 0x1) flags |= 1;  // UP
+        if (cur->ifa_flags & 0x8) flags |= 2;  // LOOPBACK
+        if (cur->ifa_flags & 0x10) flags |= 4; // POINTOPOINT
+        flags_out[written] = flags;
+
+        written++;
+    }
+    freeifaddrs(ifap);
+    return written;
+#else
+    return 0;
+#endif
 }
 
 } // extern "C"

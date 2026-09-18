@@ -21,6 +21,8 @@ let package = Package(
         .executable(name: "loopback", targets: ["loopback"]),
         .executable(name: "http-test", targets: ["http_test"]),
         .executable(name: "https-test", targets: ["https_test"]),
+        .library(name: "net/stun", targets: ["stun"]),
+        .executable(name: "stun-test", targets: ["stun_test"]),
     ],
     targets: [
         // The operating system's TCP sockets, as a C ABI.
@@ -68,6 +70,17 @@ let package = Package(
             name: "https_test",
             dependencies: ["https", "http", "tcp"],
             path: "tests/https"
+        ),
+        // The STUN package: RFC 8489 NAT traversal.
+        .target(
+            name: "stun",
+            dependencies: ["udp"],
+            path: "stun"
+        ),
+        .executableTarget(
+            name: "stun_test",
+            dependencies: ["stun", "udp"],
+            path: "tests/stun"
         ),
         // TCP Examples
         .executableTarget(

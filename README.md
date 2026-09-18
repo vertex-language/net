@@ -14,6 +14,7 @@ Standard networking library for the Vertex programming language, providing async
 - **`net/udp`**: Asynchronous datagram communication and peer binding (`udp.Bind`, `udp.UdpSocket`).
 - **`net/http`**: Pure HTTP/1.1 client and server over asynchronous TCP (`http.Get`, `http.Post`, `http.Client`, `http.ServeConn`, `http.Request`, `http.Response`).
 - **`net/https`**: HTTPS client and server over TLS 1.3, composing `net/http` and `crypto/tls` (`https.Get`, `https.Post`, `https.Client`, `https.ServeConn`, `https.WriteRequest`, `https.ReadResponse`).
+- **`net/stun`**: RFC 8489 STUN NAT traversal client and server (`stun.Discover`, `stun.Client`, `stun.Message`, `stun.HandleBindingRequest`).
 
 ---
 
@@ -164,6 +165,25 @@ func main() async -> int32 {
 }
 ```
 
+### STUN NAT Traversal (RFC 8489)
+
+```swift
+package main
+
+import "net/stun"
+
+func main() async -> int32 {
+    do {
+        let reflexiveAddr = try await stun.Discover(server: "stun.cloudflare.com:3478")
+        print("Discovered Public Reflexive Address: \(reflexiveAddr.ToString())")
+        return 0
+    } catch {
+        print("STUN query failed")
+        return 1
+    }
+}
+```
+
 ---
 
 ## Running
@@ -179,6 +199,7 @@ vsc run tcp-loopback
 vsc run udp-loopback
 vsc run http-test
 vsc run https-test
+vsc run stun-test
 
 # Run example servers and clients
 vsc run tcp-echo

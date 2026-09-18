@@ -103,6 +103,13 @@ func cudp_resolve(_ host: UnsafePointer<CChar>, _ port: int32,
 @_silgen_name("cudp_last_error")
 func cudp_last_error() -> int32
 
+@_silgen_name("cudp_get_interfaces")
+func cudp_get_interfaces(_ namesOut: UnsafeMutablePointer<CChar>?, _ nameMaxLen: int32,
+                         _ ipsOut: UnsafeMutablePointer<CChar>?, _ ipMaxLen: int32,
+                         _ maxResults: int32,
+                         _ familiesOut: UnsafeMutablePointer<int32>?,
+                         _ flagsOut: UnsafeMutablePointer<int32>?) -> int32
+
 // The runtime's wait: suspends the task on the executor until fd is ready.
 @_silgen_name("vertex_task_wait_fd")
 func waitFd(_ fd: int32, _ events: int32, _ timeoutNanos: int64) async -> int32

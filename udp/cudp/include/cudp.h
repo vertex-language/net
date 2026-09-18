@@ -91,6 +91,13 @@ int32_t cudp_resolve(const char* host, int32_t port, char* ips_out, int32_t ip_m
 // Last error reported by OS:
 int32_t cudp_last_error(void);
 
+// Enumerates local network interfaces:
+int32_t cudp_get_interfaces(char* names_out, int32_t name_max_len,
+                           char* ips_out, int32_t ip_max_len,
+                           int32_t max_results,
+                           int32_t* families_out,
+                           int32_t* flags_out);
+
 #ifdef __cplusplus
 }
 #endif

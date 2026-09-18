@@ -181,9 +181,29 @@ func optionsTest() {
     }
 }
 
+func interfacesTest() {
+    do {
+        let ifaces = try udp.GetNetworkInterfaces()
+        check(!ifaces.isEmpty, "enumerated non-empty network interfaces")
+        var foundLoopback = false
+        var i = 0
+        while i < ifaces.count {
+            let iface = ifaces[i]
+            if iface.IsLoopback && (iface.IP == "127.0.0.1" || iface.IP == "::1") {
+                foundLoopback = true
+            }
+            i += 1
+        }
+        check(foundLoopback, "found loopback interface in enumerated list")
+    } catch {
+        check(false, "GetNetworkInterfaces threw error")
+    }
+}
+
 func main() async -> int32 {
     addressTests()
     optionsTest()
+    interfacesTest()
     await roundTripTest()
     await connectedModeTest()
     await timeoutTest()
