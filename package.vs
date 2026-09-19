@@ -35,6 +35,8 @@ let package = Package(
         .executable(name: "quic-test", targets: ["quic_test"]),
         .library(name: "net/websocket", targets: ["websocket"]),
         .executable(name: "websocket-test", targets: ["websocket_test"]),
+        .library(name: "net/webtransport", targets: ["webtransport"]),
+        .executable(name: "webtransport-test", targets: ["webtransport_test"]),
     ],
     targets: [
         // The operating system's TCP sockets, as a C ABI.
@@ -159,6 +161,17 @@ let package = Package(
             name: "websocket_test",
             dependencies: ["websocket", "tcp", "http"],
             path: "tests/websocket"
+        ),
+        // The WebTransport package: RFC 9297 over HTTP/3 / QUIC.
+        .target(
+            name: "webtransport",
+            dependencies: ["http", "quic", "udp"],
+            path: "webtransport"
+        ),
+        .executableTarget(
+            name: "webtransport_test",
+            dependencies: ["webtransport", "http", "quic", "udp"],
+            path: "tests/webtransport"
         ),
         // TCP Examples
         .executableTarget(

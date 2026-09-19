@@ -19,6 +19,7 @@ Standard networking library for the Vertex programming language, providing async
   - **HTTP/3**: RFC 9114 binary framing and RFC 9204 QPACK compression over pure-Vertex QUIC, discovered via RFC 7838 `Alt-Svc`.
   - Public APIs: `http.Get`, `http.Post`, `http.Client`, `http.Server`, `http.ServeConn`, `http.ServeConnTls`.
 - **`net/websocket`**: RFC 6455 WebSocket client and server over plain TCP (`ws://`) and TLS 1.3 (`wss://`) with complete frame masking/demasking, ping/pong heartbeats, close handshakes, and fragment reassembly (`websocket.Connect`, `websocket.Upgrade`, `websocket.UpgradeTLS`, `websocket.Server`, `WebSocket`).
+- **`net/webtransport`**: RFC 9297 WebTransport over HTTP/3 and QUIC with multiplexed bidirectional and unidirectional reliable streams, unreliable datagrams (RFC 9221), HTTP/3 extended CONNECT session negotiation, and capsule protocol control signaling (`webtransport.Connect`, `webtransport.Listen`, `WebTransportSession`, `WebTransportStream`, `WebTransportListener`, `Upgrader`).
 - **`net/quic`**: RFC 9000, 9001, 9002, and 9221 QUIC transport protocol with bidirectional/unidirectional streams, ChaCha20-Poly1305 packet protection, NewReno congestion control, and unreliable datagrams (`quic.Connect`, `quic.Listen`, `QuicConnection`, `QuicStream`).
 - **`net/webrtc`**: RFC 9429 WebRTC PeerConnection, JSEP Offer/Answer state machine, and RFC 8866 SDP negotiation (`RTCPeerConnection`).
 - **`net/datachannel`**: RFC 8831 / RFC 8832 WebRTC Data Channels and DCEP channel establishment (`RTCDataChannel`).
@@ -129,7 +130,54 @@ func main() async -> int32 {
 }
 ```
 
-### 5. TCP Echo Server & Client
+### 5. WebTransport Client & Event Loop (RFC 9297)
+
+```swift
+package main
+
+import "net/webtransport"
+
+func main() async -> int32 {
+    do {
+        // Connect over HTTP/3 via QUIC using standard `Connect`
+        var session = try await webtransport.Connect("https://game.example.com/wt")
+        defer { try await session.Close(code: 0, reason: "Client shutdown") }
+
+        // 1. Send loss-tolerant state updates via unreliable datagrams
+        var playerState: [uint8] = [0x7F, 0x00, 0xAA, 0xBB]
+        try await session.SendDatagram(playerState)
+
+        // 2. Open a reliable bidirectional stream
+        var chatStream = try await session.OpenStream()
+        try await chatStream.WriteText("join_channel:lobby\n")
+        let response = try await chatStream.ReadText(maxBytes: 1024)
+        print("Chat server acknowledged: \(response)")
+
+        // 3. Process inbound events
+        while let event = try await session.NextEvent() {
+            switch event {
+            case .datagram(let packet):
+                print("Received datagram: \(packet.count) bytes")
+            case .uniStream(var rx):
+                let text = try await rx.ReadText()
+                print("Received telemetry: \(text)")
+            case .stream(var bidiStream):
+                let req = try await bidiStream.ReadText()
+                try await bidiStream.WriteText("ack\n")
+            case .sessionClosed(let code, let reason):
+                print("WebTransport session ended: \(code) - \(reason)")
+                return 0
+            }
+        }
+        return 0
+    } catch {
+        print("WebTransport connection failed")
+        return 1
+    }
+}
+```
+
+### 6. TCP Echo Server & Client
 
 ```swift
 package main
@@ -156,7 +204,7 @@ func main() async -> int32 {
 }
 ```
 
-### 6. UDP Echo Server & Client
+### 7. UDP Echo Server & Client
 
 ```swift
 package main
@@ -177,7 +225,7 @@ func main() async -> int32 {
 }
 ```
 
-### 7. WebRTC DataChannel (RFC 9429)
+### 8. WebRTC DataChannel (RFC 9429)
 
 ```swift
 package main
@@ -206,7 +254,7 @@ func main() async -> int32 {
 }
 ```
 
-### 8. STUN NAT Traversal (RFC 8489)
+### 9. STUN NAT Traversal (RFC 8489)
 
 ```swift
 package main

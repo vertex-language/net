@@ -62,14 +62,23 @@ public struct Response {
     /// Bytes serializes the entire HTTP response (status line, headers, and body) to wire bytes.
     public func Bytes() -> [uint8] {
         var out: [uint8] = []
-        let text = HeaderText()
-        for b in text.utf8 {
-            out.append(b)
+        if StatusCode == 200 && (Proto == "HTTP/1.1" || Proto.isEmpty) {
+            out.append(contentsOf: "HTTP/1.1 200 OK\r\n".utf8)
+        } else {
+            out.append(contentsOf: StatusLine().utf8)
         }
         var i = 0
-        while i < Body.count {
-            out.append(Body[i])
+        while i < Headers.entries.count {
+            let e = Headers.entries[i]
+            out.append(contentsOf: e.Key.utf8)
+            out.append(contentsOf: ": ".utf8)
+            out.append(contentsOf: e.Value.utf8)
+            out.append(contentsOf: "\r\n".utf8)
             i += 1
+        }
+        out.append(contentsOf: "\r\n".utf8)
+        if !Body.isEmpty {
+            out.append(contentsOf: Body)
         }
         return out
     }

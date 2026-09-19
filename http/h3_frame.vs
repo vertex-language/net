@@ -12,6 +12,7 @@ public struct H3FrameType {
     public static let PushPromise: uint64 = 0x07
     public static let GoAway: uint64 = 0x0c
     public static let MaxPushId: uint64 = 0x0d
+    public static let WebTransportStream: uint64 = 0x41
 }
 
 public struct H3StreamType {
@@ -19,12 +20,16 @@ public struct H3StreamType {
     public static let Push: uint64 = 0x01
     public static let QpackEncoder: uint64 = 0x02
     public static let QpackDecoder: uint64 = 0x03
+    public static let WebTransportUni: uint64 = 0x54
 }
 
 public struct H3SettingId {
     public static let QpackMaxTableCapacity: uint64 = 0x01
     public static let MaxFieldSectionSize: uint64 = 0x06
     public static let QpackBlockedStreams: uint64 = 0x07
+    public static let EnableConnectProtocol: uint64 = 0x08
+    public static let EnableWebTransport: uint64 = 0x2b60
+    public static let WebTransportMaxSessions: uint64 = 0xc67170
 }
 
 public struct H3Setting {
