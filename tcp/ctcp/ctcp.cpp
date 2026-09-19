@@ -215,9 +215,22 @@ int32_t ctcp_accept(int32_t listener_fd, char* client_ip_out, int32_t ip_max_len
     struct sockaddr_storage addr;
     memset(&addr, 0, sizeof(addr));
     socklen_t len = sizeof(addr);
-    int client_fd = accept(listener_fd, reinterpret_cast<struct sockaddr*>(&addr), &len);
-    if (client_fd < 0) {
-        return map_error(GET_LAST_ERROR());
+    int client_fd = -1;
+    while (true) {
+        client_fd = accept(listener_fd, reinterpret_cast<struct sockaddr*>(&addr), &len);
+        if (client_fd >= 0) {
+            break;
+        }
+        int e = GET_LAST_ERROR();
+#if !defined(_WIN32)
+        if (e == EINTR) {
+            continue;
+        }
+        if (e == ECONNABORTED || e == EPROTO) {
+            continue;
+        }
+#endif
+        return map_error(e);
     }
     suppress_sigpipe(client_fd);
     // The accepted socket does not inherit the listener's flags everywhere,
@@ -227,7 +240,11 @@ int32_t ctcp_accept(int32_t listener_fd, char* client_ip_out, int32_t ip_max_len
         CLOSE_SOCKET(client_fd);
         return map_error(e);
     }
-    format_address(&addr, client_ip_out, ip_max_len, client_port_out);
+    int nodelay = 1;
+    setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&nodelay), sizeof(nodelay));
+    if (client_ip_out != nullptr && ip_max_len > 0) {
+        format_address(&addr, client_ip_out, ip_max_len, client_port_out);
+    }
     return client_fd;
 }
 
@@ -448,6 +465,14 @@ int32_t ctcp_resolve(const char* host, int32_t port, char* ips_out, int32_t ip_m
 
 int32_t ctcp_last_error(void) {
     return GET_LAST_ERROR();
+}
+
+int32_t ctcp_reuseport_balances(void) {
+#if defined(__linux__)
+    return 1;
+#else
+    return 0;
+#endif
 }
 
 } // extern "C"

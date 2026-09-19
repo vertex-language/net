@@ -53,10 +53,11 @@ public struct H3ClientSession {
         ]
 
         var h = 0
-        while h < req.Headers.entries.count {
-            let keyLower = req.Headers.lower(req.Headers.entries[h].Key)
+        let reqEntries = req.Headers.Materialized()
+        while h < reqEntries.count {
+            let keyLower = req.Headers.lower(reqEntries[h].Key)
             if keyLower != "connection" && keyLower != "upgrade" && keyLower != "keep-alive" && keyLower != "host" {
-                headerList.append(HeaderEntry(key: keyLower, value: req.Headers.entries[h].Value))
+                headerList.append(HeaderEntry(key: keyLower, value: reqEntries[h].Value))
             }
             h += 1
         }

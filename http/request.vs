@@ -2,15 +2,17 @@ package http
 
 import "net/tcp"
 
+@_silgen_name("vertex_string_from_utf8")
+func stringFromUtf8(_ ptr: UnsafeRawPointer, _ count: int64) -> string
+
 func asciiString(_ bytes: [uint8], from: int, to: int) -> string {
-    var chars: [CChar] = []
-    var i = from
-    while i < to {
-        chars.append(CChar(truncatingIfNeeded: bytes[i]))
-        i += 1
+    if from >= to || from >= bytes.count {
+        return ""
     }
-    chars.append(0)
-    return string(cString: chars)
+    let count = to - from
+    return bytes.withUnsafeBytes { raw in
+        stringFromUtf8(raw.baseAddress! + from, int64(count))
+    }
 }
 
 func trimSpaces(_ s: string) -> string {
@@ -70,9 +72,10 @@ public struct Request {
     /// HeaderText serializes the request line and headers in HTTP/1.1 format with trailing CRLF CRLF.
     public func HeaderText() -> string {
         var text = "\(Method) \(URL) \(Proto)\r\n"
+        let all = Headers.Materialized()
         var i = 0
-        while i < Headers.entries.count {
-            let e = Headers.entries[i]
+        while i < all.count {
+            let e = all[i]
             text += "\(e.Key): \(e.Value)\r\n"
             i += 1
         }
@@ -82,16 +85,8 @@ public struct Request {
 
     /// Bytes serializes the entire HTTP request (request line, headers, and body) to wire bytes.
     public func Bytes() -> [uint8] {
-        var out: [uint8] = []
-        let text = HeaderText()
-        for b in text.utf8 {
-            out.append(b)
-        }
-        var i = 0
-        while i < Body.count {
-            out.append(Body[i])
-            i += 1
-        }
+        var out: [uint8] = HeaderText().utf8
+        out.append(contentsOf: Body)
         return out
     }
 
@@ -105,10 +100,17 @@ public struct Request {
 
     /// FindHeaderEnd finds the start index of \r\n\r\n in raw bytes, or -1 if not found.
     public static func FindHeaderEnd(_ raw: [uint8], from: int = 0) -> int {
-        if raw.count < 4 { return -1 }
+        return FindHeaderEnd(raw, from: from, to: raw.count)
+    }
+
+    /// FindHeaderEnd finds the start index of \r\n\r\n in raw[from..<to], or -1 if not found.
+    public static func FindHeaderEnd(_ raw: [uint8], from: int, to: int) -> int {
         var j = from
         if j < 0 { j = 0 }
-        while j + 3 < raw.count {
+        let end = to < raw.count ? to : raw.count
+        while j + 3 < end {
+            // Every request's blank line begins with \r; the three bytes
+            // after it are looked at only when one is found.
             if raw[j] == 13 && raw[j+1] == 10 && raw[j+2] == 13 && raw[j+3] == 10 {
                 return j
             }
@@ -119,84 +121,102 @@ public struct Request {
 
     /// ParseHeaders parses a Request's method, URL, proto, headers, and any initial body bytes up to headerEnd.
     public static func ParseHeaders(_ raw: [uint8], headerEnd: int) throws -> Request {
-        var lines: [string] = []
-        var lineStart = 0
-        var k = 0
-        while k < headerEnd {
-            if raw[k] == 13 && raw[k+1] == 10 {
-                lines.append(asciiString(raw, from: lineStart, to: k))
-                k += 2
-                lineStart = k
-            } else {
-                k += 1
-            }
-        }
-        if lineStart < headerEnd {
-            lines.append(asciiString(raw, from: lineStart, to: headerEnd))
-        }
-
-        if lines.isEmpty {
-            throw HttpError.malformedRequest
-        }
-
-        let firstLine = lines[0]
-        var parts: [string] = []
-        var pStart = 0
-        var pIdx = 0
-        var flBytes: [uint8] = []
-        for b in firstLine.utf8 { flBytes.append(b) }
-        while pIdx < flBytes.count {
-            if flBytes[pIdx] == 32 {
-                parts.append(asciiString(flBytes, from: pStart, to: pIdx))
-                pIdx += 1
-                pStart = pIdx
-            } else {
-                pIdx += 1
-            }
-        }
-        if pStart < flBytes.count {
-            parts.append(asciiString(flBytes, from: pStart, to: flBytes.count))
-        }
-
-        if parts.count < 3 {
-            throw HttpError.malformedRequest
-        }
-
-        var req = Request(method: parts[0], url: parts[1], proto: parts[2])
-
-        var lineIdx = 1
-        while lineIdx < lines.count {
-            let line = lines[lineIdx]
-            var colon = -1
-            var cIdx = 0
-            for b in line.utf8 {
-                if b == 58 {
-                    colon = cIdx
-                    break
-                }
-                cIdx += 1
-            }
-            if colon > 0 {
-                var lBytes: [uint8] = []
-                for b in line.utf8 { lBytes.append(b) }
-                let key = trimSpaces(asciiString(lBytes, from: 0, to: colon))
-                let val = trimSpaces(asciiString(lBytes, from: colon + 1, to: lBytes.count))
-                req.Headers.Add(key, val)
-            }
-            lineIdx += 1
-        }
-
+        var req = try ParseHeaders(raw, from: 0, headerEnd: headerEnd)
         let bodyStart = headerEnd + 4
-        var bodyBytes: [uint8] = []
-        var bIdx = bodyStart
-        while bIdx < raw.count {
-            bodyBytes.append(raw[bIdx])
-            bIdx += 1
+        if bodyStart < raw.count {
+            req.Body = sliceBytes(raw, from: bodyStart, count: raw.count - bodyStart)
         }
-        req.Body = bodyBytes
+        return req
+    }
+
+    /// ParseHeaders parses the request line and headers that begin at
+    /// `from` and end at `headerEnd`, the start of the blank line, and is
+    /// the Request they describe. The bytes after the blank line are not
+    /// looked at: a server that reads into one buffer per connection
+    /// keeps the body, and the next request, where they are.
+    public static func ParseHeaders(_ raw: [uint8], from: int, headerEnd: int) throws -> Request {
+        var i = from
+        while i < headerEnd && (raw[i] == 32 || raw[i] == 13 || raw[i] == 10) { i += 1 }
+        let mStart = i
+        while i < headerEnd && raw[i] != 32 && raw[i] != 13 && raw[i] != 10 { i += 1 }
+        if i >= headerEnd { throw HttpError.malformedRequest }
+        let mLen = i - mStart
+        var method = ""
+        if mLen == 3 && raw[mStart] == 71 && raw[mStart+1] == 69 && raw[mStart+2] == 84 {
+            method = "GET"
+        } else if mLen == 4 && raw[mStart] == 80 && raw[mStart+1] == 79 && raw[mStart+2] == 83 && raw[mStart+3] == 84 {
+            method = "POST"
+        } else if mLen == 4 && raw[mStart] == 72 && raw[mStart+1] == 69 && raw[mStart+2] == 65 && raw[mStart+3] == 68 {
+            method = "HEAD"
+        } else if mLen == 3 && raw[mStart] == 80 && raw[mStart+1] == 85 && raw[mStart+2] == 84 {
+            method = "PUT"
+        } else if mLen == 6 && raw[mStart] == 68 && raw[mStart+1] == 69 && raw[mStart+2] == 76 && raw[mStart+3] == 69 && raw[mStart+4] == 84 && raw[mStart+5] == 69 {
+            method = "DELETE"
+        } else {
+            method = asciiString(raw, from: mStart, to: i)
+        }
+
+        while i < headerEnd && raw[i] == 32 { i += 1 }
+        let uStart = i
+        while i < headerEnd && raw[i] != 32 && raw[i] != 13 && raw[i] != 10 { i += 1 }
+        if i >= headerEnd { throw HttpError.malformedRequest }
+        let uLen = i - uStart
+        var url = ""
+        if uLen == 1 && raw[uStart] == 47 {
+            url = "/"
+        } else {
+            url = asciiString(raw, from: uStart, to: i)
+        }
+
+        while i < headerEnd && raw[i] == 32 { i += 1 }
+        let pStart = i
+        while i < headerEnd && raw[i] != 13 && raw[i] != 10 { i += 1 }
+        let pLen = i - pStart
+        var proto = "HTTP/1.1"
+        if pLen != 8 || raw[pStart] != 72 || raw[pStart+1] != 84 || raw[pStart+2] != 84 || raw[pStart+3] != 80 || raw[pStart+4] != 47 || raw[pStart+5] != 49 || raw[pStart+6] != 46 || raw[pStart+7] != 49 {
+            proto = asciiString(raw, from: pStart, to: i)
+        }
+        while i < headerEnd && (raw[i] == 13 || raw[i] == 10) { i += 1 }
+
+        var req = Request(method: method, url: url, proto: proto)
+
+        // The header block is copied into the request once, and each
+        // header recorded as spans into that copy: no string is made for
+        // a name or value until something reads it. `from` is where the
+        // request began in raw, so spans are relative to the copy.
+        let blockStart = from
+        req.Headers.raw = sliceBytes(raw, from: blockStart, count: headerEnd - blockStart)
+        while i < headerEnd {
+            let lineStart = i
+            var colon = -1
+            while i < headerEnd && raw[i] != 13 && raw[i] != 10 {
+                if colon < 0 && raw[i] == 58 {
+                    colon = i
+                }
+                i += 1
+            }
+            if colon > lineStart {
+                var kStart = lineStart
+                while kStart < colon && (raw[kStart] == 32 || raw[kStart] == 9) { kStart += 1 }
+                var kEnd = colon
+                while kEnd > kStart && (raw[kEnd - 1] == 32 || raw[kEnd - 1] == 9) { kEnd -= 1 }
+
+                var vStart = colon + 1
+                while vStart < i && (raw[vStart] == 32 || raw[vStart] == 9) { vStart += 1 }
+                var vEnd = i
+                while vEnd > vStart && (raw[vEnd - 1] == 32 || raw[vEnd - 1] == 9) { vEnd -= 1 }
+
+                if kEnd > kStart {
+                    req.Headers.addSpan(kStart: kStart - blockStart, kLen: kEnd - kStart,
+                                        vStart: vStart - blockStart, vLen: vEnd - vStart)
+                }
+            }
+            while i < headerEnd && (raw[i] == 13 || raw[i] == 10) { i += 1 }
+        }
         return req
     }
 }
+
 
 /// ReadRequest parses an HTTP/1.1 request from an incoming TCP stream.
 public func ReadRequest(from stream: tcp.TcpStream) async throws -> Request {

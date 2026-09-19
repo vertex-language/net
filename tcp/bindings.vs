@@ -88,6 +88,9 @@ func ctcp_resolve(_ host: UnsafePointer<CChar>, _ port: int32,
 @_silgen_name("ctcp_last_error")
 func ctcp_last_error() -> int32
 
+@_silgen_name("ctcp_reuseport_balances")
+func ctcp_reuseport_balances() -> int32
+
 // The runtime's wait. It is `async` because it suspends, and in Vertex --
 // as in Swift -- only an async function can: a synchronous one has no
 // context, no frame of its own, and nowhere to be resumed to, so there is
@@ -135,4 +138,26 @@ func socketAddress(of fd: int32, peer: bool) -> SocketAddress {
         return .v4(ip: "0.0.0.0", port: 0)
     }
     return SocketAddress.fromC(ip: string(cString: text), port: port)
+}
+
+@_silgen_name("vertex_pal_getenv")
+func palGetenv(_ name: UnsafePointer<CChar>) -> UnsafePointer<CChar>?
+
+@_silgen_name("vertex_pal_cpus")
+func palCpus() -> int32
+
+// poolSize is how many workers the runtime's pool has: what VERTEX_WORKERS
+// says, or one per processor. It is what `Serve` binds a listener per, on
+// a kernel that balances SO_REUSEPORT.
+func poolSize() -> int {
+    let key = "VERTEX_WORKERS"
+    let val = key.withCString { k in palGetenv(k) }
+    if let v = val {
+        let s = string(cString: v)
+        if let n = int(s) {
+            return n
+        }
+    }
+    let c = int(palCpus())
+    return c > 0 ? c : 1
 }

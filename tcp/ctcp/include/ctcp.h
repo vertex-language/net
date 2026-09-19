@@ -122,6 +122,12 @@ int32_t ctcp_get_peername(int32_t fd, char* ip_out, int32_t ip_max_len, int32_t*
 // deciding what went wrong.
 int32_t ctcp_last_error(void);
 
+// Whether the kernel spreads connections across sockets bound with
+// SO_REUSEPORT. Linux hashes each connection to one of them; Darwin and
+// the BSDs hand every connection to a single socket, so a listener per
+// worker does nothing there and a server distributes connections itself.
+int32_t ctcp_reuseport_balances(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -9,12 +9,106 @@ public struct HeaderEntry {
     }
 }
 
+// A header parsed in place: where its name and value are in the bytes the
+// Header holds, rather than two strings made for it. The server reads a
+// request's headers this way, and turns a span into a string only for a
+// header something actually asks for. See Header.
+struct HeaderSpan {
+    var kStart: int
+    var kLen: int
+    var vStart: int
+    var vLen: int
+}
+
+// Header names are case-insensitive (RFC 9110 5.1), and so are the
+// tokens in Connection. The runtime compares two strings that way without
+// making anything.
+@_silgen_name("vertex_string_equal_fold")
+func equalFold(_ a: string, _ b: string) -> bool
+
+@_silgen_name("vertex_string_from_utf8")
+func headerStringFromUtf8(_ ptr: UnsafeRawPointer, _ count: int64) -> string
+
 public struct Header {
     public var entries: [HeaderEntry] = []
+    // A request parsed by the server keeps its headers as spans over the
+    // bytes it copied out of the read buffer, so that parsing allocates
+    // one block and no strings, and a header becomes a string only when
+    // it is read. `entries` is what a header built from strings uses --
+    // a response, a client request -- and what materializing a span
+    // moves it to.
+    var raw: [uint8] = []
+    var spans: [HeaderSpan] = []
 
     public init() {}
 
-    func lower(_ s: string) -> string {
+    func equalFold(_ a: string, _ b: string) -> bool {
+        return http.equalFold(a, b)
+    }
+
+    // spanString is the string a span's bytes denote.
+    func spanString(_ start: int, _ len: int) -> string {
+        if len <= 0 { return "" }
+        return raw.withUnsafeBytes { rp in
+            headerStringFromUtf8(rp.baseAddress! + start, int64(len))
+        }
+    }
+
+    // spanKeyEquals compares a span's name to key, case-insensitively,
+    // without making the name into a string.
+    func spanKeyEquals(_ span: HeaderSpan, _ key: string) -> bool {
+        let kb = key.utf8
+        if kb.count != span.kLen { return false }
+        var i = 0
+        while i < span.kLen {
+            var a = raw[span.kStart + i]
+            var b = kb[i]
+            if a >= 65 && a <= 90 { a += 32 }
+            if b >= 65 && b <= 90 { b += 32 }
+            if a != b { return false }
+            i += 1
+        }
+        return true
+    }
+
+    // addSpan records a header parsed in place. The bytes it points into
+    // are the Header's own `raw`, set once for the whole block.
+    mutating func addSpan(kStart: int, kLen: int, vStart: int, vLen: int) {
+        spans.append(HeaderSpan(kStart: kStart, kLen: kLen, vStart: vStart, vLen: vLen))
+    }
+
+    // materialize turns every span into an entry, so that code which
+    // walks `entries` sees them. The server's fast path never calls it;
+    // client and HTTP/2/3 paths do, before they iterate.
+    public mutating func materialize() {
+        if spans.isEmpty { return }
+        var i = 0
+        while i < spans.count {
+            let sp = spans[i]
+            entries.append(HeaderEntry(key: spanString(sp.kStart, sp.kLen),
+                                       value: spanString(sp.vStart, sp.vLen)))
+            i += 1
+        }
+        spans = []
+        raw = []
+    }
+
+    // Materialized returns the header as an array of entries, turning any
+    // spans into strings first.
+    public func Materialized() -> [HeaderEntry] {
+        if spans.isEmpty { return entries }
+        var out = entries
+        var i = 0
+        while i < spans.count {
+            let sp = spans[i]
+            out.append(HeaderEntry(key: spanString(sp.kStart, sp.kLen),
+                                   value: spanString(sp.vStart, sp.vLen)))
+            i += 1
+        }
+        return out
+    }
+
+    public func lower(_ s: string) -> string {
         var chars: [CChar] = []
         for b in s.utf8 {
             if b >= 65 && b <= 90 {
@@ -28,10 +122,9 @@ public struct Header {
     }
 
     public mutating func Set(_ key: string, _ value: string) {
-        let lkey = lower(key)
         var i = 0
         while i < entries.count {
-            if lower(entries[i].Key) == lkey {
+            if equalFold(entries[i].Key, key) {
                 entries[i] = HeaderEntry(key: key, value: value)
                 return
             }
@@ -45,10 +138,16 @@ public struct Header {
     }
 
     public func Get(_ key: string) -> string? {
-        let lkey = lower(key)
         var i = 0
+        while i < spans.count {
+            if spanKeyEquals(spans[i], key) {
+                return spanString(spans[i].vStart, spans[i].vLen)
+            }
+            i += 1
+        }
+        i = 0
         while i < entries.count {
-            if lower(entries[i].Key) == lkey {
+            if equalFold(entries[i].Key, key) {
                 return entries[i].Value
             }
             i += 1
@@ -57,11 +156,10 @@ public struct Header {
     }
 
     public mutating func Del(_ key: string) {
-        let lkey = lower(key)
         var filtered: [HeaderEntry] = []
         var i = 0
         while i < entries.count {
-            if lower(entries[i].Key) != lkey {
+            if !equalFold(entries[i].Key, key) {
                 filtered.append(entries[i])
             }
             i += 1

@@ -25,10 +25,6 @@ public enum ShutdownMode {
 /// A stream does not close itself. Close it, or hand it to something that
 /// will: `defer { stream.Close() }` is the usual shape.
 public struct TcpStream {
-    /// The address this end is bound to.
-    public let LocalAddress: SocketAddress
-    /// The address at the other end.
-    public let PeerAddress: SocketAddress
     /// The socket, for code that has to reach past this package.
     public let SocketFd: int32
 
@@ -38,6 +34,29 @@ public struct TcpStream {
     /// How long a write waits for the socket to take more, in
     /// milliseconds. 0 waits for as long as it takes.
     public var WriteTimeoutMs: int32 = 0
+
+    public init(SocketFd: int32, ReadTimeoutMs: int32 = 0, WriteTimeoutMs: int32 = 0) {
+        self.SocketFd = SocketFd
+        self.ReadTimeoutMs = ReadTimeoutMs
+        self.WriteTimeoutMs = WriteTimeoutMs
+    }
+
+    public init(LocalAddress: SocketAddress, PeerAddress: SocketAddress, SocketFd: int32,
+                ReadTimeoutMs: int32 = 0, WriteTimeoutMs: int32 = 0) {
+        self.SocketFd = SocketFd
+        self.ReadTimeoutMs = ReadTimeoutMs
+        self.WriteTimeoutMs = WriteTimeoutMs
+    }
+
+    /// The address this end is bound to.
+    public var LocalAddress: SocketAddress {
+        return socketAddress(of: SocketFd, peer: false)
+    }
+
+    /// The address at the other end.
+    public var PeerAddress: SocketAddress {
+        return socketAddress(of: SocketFd, peer: true)
+    }
 }
 
 // MARK: - Connecting
@@ -96,6 +115,16 @@ public func (s: borrowing TcpStream) Read(into buffer: inout [uint8]) async thro
         return 0
     }
     return try await s.readInto(&buffer, at: 0)
+}
+
+/// Reads into `buffer` from `offset` on, up to its end, and is how many
+/// bytes that was: `Read(into:)` for a buffer that is partly full, so
+/// that a parser can keep what it has and read more after it.
+public func (s: borrowing TcpStream) Read(into buffer: inout [uint8], at offset: int) async throws -> int {
+    if offset < 0 || offset >= buffer.count {
+        return 0
+    }
+    return try await s.readInto(&buffer, at: offset)
 }
 
 /// Reads until `buffer` is full, and throws `unexpectedEnd` if the stream
@@ -202,11 +231,7 @@ public func (s: borrowing TcpStream) Write(_ data: borrowing ArraySlice<uint8>) 
 
 /// Writes text as UTF-8.
 public func (s: borrowing TcpStream) WriteText(_ text: string) async throws {
-    var bytes: [uint8] = []
-    for b in text.utf8 {
-        bytes.append(b)
-    }
-    try await s.Write(bytes)
+    try await s.Write(text.utf8)
 }
 
 // waitToSend is what a write does when the kernel would not take more:

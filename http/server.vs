@@ -22,17 +22,11 @@ public struct ResponseWriter {
     }
 
     public mutating func Write(_ data: [uint8]) {
-        var i = 0
-        while i < data.count {
-            Body.append(data[i])
-            i += 1
-        }
+        Body.append(contentsOf: data)
     }
 
     public mutating func WriteText(_ s: string) {
-        for b in s.utf8 {
-            Body.append(b)
-        }
+        Body.append(contentsOf: s.utf8)
     }
 }
 
@@ -73,25 +67,265 @@ public struct ServerConfig {
     }
 }
 
-/// ServeConn handles a single incoming HTTP client connection over plain TCP.
+@_silgen_name("memcpy")
+func c_memcpy(_ dest: UnsafeMutableRawPointer, _ src: UnsafeRawPointer, _ n: int) -> UnsafeMutableRawPointer
+
+func sliceBytes(_ src: [uint8], from: int, count: int) -> [uint8] {
+    if count <= 0 { return [] }
+    var dst = [uint8](repeating: 0, count: count)
+    dst.withUnsafeMutableBytes { dp in
+        src.withUnsafeBytes { sp in
+            _ = c_memcpy(dp.baseAddress!, sp.baseAddress! + from, count)
+        }
+    }
+    return dst
+}
+
+func appendBytes(_ dst: inout [uint8], _ src: [uint8], from: int, count: int) {
+    if count <= 0 { return }
+    let orig = dst.count
+    dst.append(contentsOf: [uint8](repeating: 0, count: count))
+    dst.withUnsafeMutableBytes { dp in
+        src.withUnsafeBytes { sp in
+            _ = c_memcpy(dp.baseAddress! + orig, sp.baseAddress! + from, count)
+        }
+    }
+}
+
+// The buffers a connection is served through. Both are made once, when
+// the connection is, and reused for every request on it: the read
+// buffer holds what has arrived and not yet been consumed, between
+// `head` and `tail`, and a request is parsed where it lies; the write
+// buffer is filled with a response and sent in one write. This is the
+// shape of Go's bufio pair and hyper's Buffered, and it is why neither
+// allocates per request.
+let initialReadBuffer = 8192
+// A request whose headers do not fit in this many bytes is refused, as
+// Go's DefaultMaxHeaderBytes refuses it.
+let maxHeaderBytes = 1 << 20
+
+// The fixed bytes of a response, built once and appended as they are:
+// no String is made, and no per-request literal is turned into bytes.
+let bytesStatus200: [uint8] = [72, 84, 84, 80, 47, 49, 46, 49, 32, 50, 48, 48, 32, 79, 75, 13, 10] // "HTTP/1.1 200 OK\r\n"
+let bytesColonSpace: [uint8] = [58, 32]         // ": "
+let bytesCRLF: [uint8] = [13, 10]               // "\r\n"
+let bytesContentLength: [uint8] = [67, 111, 110, 116, 101, 110, 116, 45, 76, 101, 110, 103, 116, 104, 58, 32] // "Content-Length: "
+let bytesConnKeepAlive: [uint8] = [67, 111, 110, 110, 101, 99, 116, 105, 111, 110, 58, 32, 107, 101, 101, 112, 45, 97, 108, 105, 118, 101, 13, 10] // "Connection: keep-alive\r\n"
+let bytesConnClose: [uint8] = [67, 111, 110, 110, 101, 99, 116, 105, 111, 110, 58, 32, 99, 108, 111, 115, 101, 13, 10] // "Connection: close\r\n"
+
+// appendDecimal writes n in ASCII onto the end of out: the digits of a
+// Content-Length, without a String on the way.
+func appendDecimal(_ out: inout [uint8], _ n: int) {
+    if n < 10 {
+        out.append(uint8(48 + n))
+        return
+    }
+    var digits: [uint8] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    var v = n
+    var i = digits.count
+    while v > 0 {
+        i -= 1
+        digits[i] = uint8(48 + v % 10)
+        v /= 10
+    }
+    while i < digits.count {
+        out.append(digits[i])
+        i += 1
+    }
+}
+
+// encodeResponse writes the response's status line, headers, blank line
+// and body onto out, as the bytes that go on the wire. keepAlive is what
+// the connection decided, unless a Connection header of the handler's
+// says otherwise, in which case it is updated.
+func encodeResponse(_ out: inout [uint8], _ writer: borrowing ResponseWriter, keepAlive: inout bool) {
+    if writer.StatusCode == 200 {
+        out.append(contentsOf: bytesStatus200)
+    } else {
+        out.append(contentsOf: "HTTP/1.1 \(writer.StatusCode) \(StatusText(writer.StatusCode))\r\n".utf8)
+    }
+    var hasContentLength = false
+    var hasConnection = false
+    var i = 0
+    while i < writer.Headers.entries.count {
+        let e = writer.Headers.entries[i]
+        if equalFold(e.Key, "Content-Length") {
+            hasContentLength = true
+        } else if equalFold(e.Key, "Connection") {
+            hasConnection = true
+            if equalFold(e.Value, "close") {
+                keepAlive = false
+            }
+        }
+        out.append(contentsOf: e.Key.utf8)
+        out.append(contentsOf: bytesColonSpace)
+        out.append(contentsOf: e.Value.utf8)
+        out.append(contentsOf: bytesCRLF)
+        i += 1
+    }
+    if !hasContentLength {
+        out.append(contentsOf: bytesContentLength)
+        appendDecimal(&out, writer.Body.count)
+        out.append(contentsOf: bytesCRLF)
+    }
+    if !hasConnection {
+        if keepAlive {
+            out.append(contentsOf: bytesConnKeepAlive)
+        } else {
+            out.append(contentsOf: bytesConnClose)
+        }
+    }
+    out.append(contentsOf: bytesCRLF)
+    if !writer.Body.isEmpty {
+        out.append(contentsOf: writer.Body)
+    }
+}
+
+// wantsKeepAlive is whether the connection stays open after this
+// request: HTTP/1.1 unless the client says close, HTTP/1.0 only if it
+// asks.
+func wantsKeepAlive(_ req: borrowing Request) -> bool {
+    let conn = req.Headers.Get("Connection")
+    if req.Proto == "HTTP/1.0" {
+        if let c = conn {
+            return equalFold(c, "keep-alive")
+        }
+        return false
+    }
+    if let c = conn {
+        if equalFold(c, "close") {
+            return false
+        }
+    }
+    return true
+}
+
+/// ServeConn handles incoming HTTP client connections over plain TCP with keep-alive support.
+///
+/// Every request on the connection is read into the one buffer, parsed
+/// in place, answered from the one write buffer, and sent with one
+/// write. A request that arrived behind the last one (pipelining) is
+/// found where it already is, without reading again.
 public func ServeConn(stream: tcp.TcpStream, handle: (Request) async throws -> ResponseWriter) async {
     defer { stream.Close() }
-    do {
-        let req = try await ReadRequest(from: stream)
-        var writer = try await handle(req)
+    var readBuf = [uint8](repeating: 0, count: initialReadBuffer)
+    var head = 0   // the first byte not yet consumed
+    var tail = 0   // one past the last byte read
+    var writeBuf: [uint8] = []
 
-        var res = Response(statusCode: writer.StatusCode)
-        res.Headers = writer.Headers
-        if res.Headers.Get("Content-Length") == nil {
-            res.Headers.Set("Content-Length", "\(writer.Body.count)")
+    while true {
+        // The request's headers: whatever is buffered, then more until
+        // the blank line is there.
+        var headerEnd = Request.FindHeaderEnd(readBuf, from: head, to: tail)
+        while headerEnd < 0 {
+            if tail == readBuf.count {
+                if head > 0 {
+                    // Room at the front: slide what is left down to it.
+                    let kept = tail - head
+                    var k = 0
+                    while k < kept {
+                        readBuf[k] = readBuf[head + k]
+                        k += 1
+                    }
+                    head = 0
+                    tail = kept
+                } else if readBuf.count >= maxHeaderBytes {
+                    // 431 Request Header Fields Too Large
+                    return
+                } else {
+                    readBuf.append(contentsOf: [uint8](repeating: 0, count: readBuf.count))
+                }
+            }
+            do {
+                let n = try await stream.Read(into: &readBuf, at: tail)
+                if n <= 0 {
+                    return
+                }
+                let scanFrom = tail - 3 > head ? tail - 3 : head
+                tail += n
+                headerEnd = Request.FindHeaderEnd(readBuf, from: scanFrom, to: tail)
+            } catch {
+                return
+            }
         }
-        if res.Headers.Get("Connection") == nil {
-            res.Headers.Set("Connection", "close")
+
+        var req: Request
+        do {
+            req = try Request.ParseHeaders(readBuf, from: head, headerEnd: headerEnd)
+        } catch {
+            return
         }
-        res.Body = writer.Body
-        try await res.Write(to: stream)
-    } catch {
-        // Connection closed or error
+
+        // The body, where there is one: Content-Length bytes after the
+        // blank line, read into the same buffer.
+        var bodyStart = headerEnd + 4
+        var expectedLen = 0
+        if let clVal = req.Headers.Get("Content-Length") {
+            expectedLen = parseContentLength(clVal)
+        }
+        while tail - bodyStart < expectedLen {
+            if tail == readBuf.count {
+                if head > 0 {
+                    let kept = tail - head
+                    var k = 0
+                    while k < kept {
+                        readBuf[k] = readBuf[head + k]
+                        k += 1
+                    }
+                    bodyStart -= head
+                    head = 0
+                    tail = kept
+                }
+                let need = bodyStart + expectedLen
+                if readBuf.count < need {
+                    var grow = readBuf.count
+                    while readBuf.count + grow < need {
+                        grow *= 2
+                    }
+                    readBuf.append(contentsOf: [uint8](repeating: 0, count: grow))
+                }
+            }
+            do {
+                let n = try await stream.Read(into: &readBuf, at: tail)
+                if n <= 0 {
+                    return
+                }
+                tail += n
+            } catch {
+                return
+            }
+        }
+        if expectedLen > 0 {
+            req.Body = sliceBytes(readBuf, from: bodyStart, count: expectedLen)
+        }
+
+        // Consumed. What follows, if anything, is the next request.
+        head = bodyStart + expectedLen
+        if head == tail {
+            head = 0
+            tail = 0
+        }
+
+        var keepAlive = wantsKeepAlive(req)
+
+        var writer: ResponseWriter
+        do {
+            writer = try await handle(req)
+        } catch {
+            return
+        }
+
+        writeBuf.removeAll(keepingCapacity: true)
+        encodeResponse(&writeBuf, writer, keepAlive: &keepAlive)
+        do {
+            try await stream.Write(writeBuf)
+        } catch {
+            return
+        }
+
+        if !keepAlive {
+            return
+        }
     }
 }
 
@@ -300,26 +534,28 @@ public struct HttpListener {
     }
 
     /// Accepts and handles incoming HTTP connections concurrently using the provided handler.
+    /// Multi-worker accept loops across the runtime pool are automatically leveraged via TcpListener.Serve.
     public func Serve(handler: @escaping (Request) async throws -> ResponseWriter) async throws {
-        while true {
-            let stream = try await self.Listener.Accept()
-            let h = handler
-            Task {
-                await ServeConn(stream: stream, handle: h)
-            }
+        let h = handler
+        try await self.Listener.Serve { stream in
+            await ServeConn(stream: stream, handle: h)
         }
     }
 }
 
 /// Starts listening on the specified address and returns an HttpListener immediately.
 public func Listen(_ address: string) throws -> HttpListener {
-    let listener = try tcp.Listen(address)
+    var opts = tcp.ListenerOptions()
+    opts.Backlog = 1024
+    let listener = try tcp.Listen(address, options: opts)
     return HttpListener(listener: listener)
 }
 
 /// Starts listening on the specified address with server configuration and returns an HttpListener immediately.
 public func Listen(_ address: string, config: ServerConfig) throws -> HttpListener {
-    let listener = try tcp.Listen(address)
+    var opts = tcp.ListenerOptions()
+    opts.Backlog = 1024
+    let listener = try tcp.Listen(address, options: opts)
     return HttpListener(listener: listener, config: config)
 }
 
@@ -342,7 +578,9 @@ public struct Server {
 
     /// Listens on the specified address and serves requests.
     public func Listen(on address: string) async throws {
-        let l = try tcp.Listen(address)
+        var opts = tcp.ListenerOptions()
+        opts.Backlog = 1024
+        let l = try tcp.Listen(address, options: opts)
         let hl = HttpListener(listener: l, config: self.Config)
         defer { hl.Close() }
         try await hl.Serve(handler: self.Handler)

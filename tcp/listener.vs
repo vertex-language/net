@@ -4,13 +4,13 @@ package tcp
 /// are not what is wanted.
 public struct ListenerOptions {
     /// How many connections the kernel holds before it starts refusing.
-    public var Backlog: int32 = 128
+    public var Backlog: int32 = 1024
     /// Lets the address be bound again while an old connection is still
     /// winding down, so a server can restart at once. On by default.
     public var ReuseAddress: bool = true
     /// Lets several sockets bind the same address, for running more than
-    /// one acceptor. Off by default.
-    public var ReusePort: bool = false
+    /// one acceptor. On by default for multi-worker concurrency.
+    public var ReusePort: bool = true
 
     public init() {}
 
@@ -31,6 +31,9 @@ public struct TcpListener {
     /// How long `Accept` waits for a connection before it throws
     /// `timedOut`. 0 waits for as long as it takes, which is the default.
     public var AcceptTimeoutMs: int32 = 0
+
+    /// Options used when binding the listener.
+    public var Options: ListenerOptions = .default
 }
 
 // MARK: - Binding
@@ -59,7 +62,7 @@ public func Listen(host: string = "0.0.0.0", port: uint16,
     if fd < 0 {
         throw errorFor(fd, "\(host):\(port)")
     }
-    return TcpListener(LocalAddress: socketAddress(of: fd, peer: false), SocketFd: fd)
+    return TcpListener(LocalAddress: socketAddress(of: fd, peer: false), SocketFd: fd, Options: options)
 }
 
 /// Listens on an address that has already been parsed.
@@ -77,16 +80,9 @@ public func Listen(address: SocketAddress,
 public func (l: borrowing TcpListener) Accept() async throws -> TcpStream {
     let fd = l.SocketFd
     while true {
-        var text = [CChar](repeating: 0, count: addressTextCapacity)
-        var port: int32 = 0
-        let client = text.withUnsafeMutableBufferPointer { bp in
-            ctcp_accept(fd, bp.baseAddress, int32(bp.count), &port)
-        }
+        let client = ctcp_accept(fd, nil, 0, nil)
         if client >= 0 {
-            return TcpStream(
-                LocalAddress: socketAddress(of: client, peer: false),
-                PeerAddress: SocketAddress.fromC(ip: string(cString: text), port: port),
-                SocketFd: client)
+            return TcpStream(SocketFd: client)
         }
         if client != Code.wouldBlock {
             throw errorFor(client, "accepting on \(l.LocalAddress.ToString())")
@@ -104,18 +100,58 @@ public func (l: borrowing TcpListener) Accept() async throws -> TcpStream {
 /// handlers run, and one slow client holds up only itself. The handler
 /// owns the stream it is given and is responsible for closing it.
 ///
-/// The handler is `async` because everything it will want to do with the
-/// stream is.
+/// Each connection's task is started on the runtime's pool
+/// (`Task.detached`), which hands them to the workers in turn: a
+/// connection lives on one executor, whose kqueue watches its socket and
+/// whose thread runs everything it does, and the connections are spread
+/// over every core. That is what Go's and tokio's servers do with one
+/// listener, and it does not depend on the kernel.
+///
+/// Where the kernel balances `SO_REUSEPORT` (Linux), and the listener was
+/// bound with it, `Serve` also binds a listener per worker, so accepting
+/// is spread as well and a connection's task starts on the executor that
+/// accepted it. Darwin gives every connection to one socket, so there the
+/// extra listeners would only sit idle, and they are not made.
 ///
 /// `Serve` returns only by throwing, which is what a listener that has
 /// been closed, or an accept that failed for good, does.
 public func (l: borrowing TcpListener) Serve(
     _ handler: @escaping (TcpStream) async -> Void) async throws {
+    let port = l.LocalAddress.Port()
+    let host = l.LocalAddress.Host()
+
+    if l.Options.ReusePort && port > 0 && ctcp_reuseport_balances() == 1 {
+        let workers = poolSize()
+        var w = 0
+        while w < workers {
+            let h = handler
+            let p = port
+            let hostStr = host
+            let opts = l.Options
+            _ = Task.detached {
+                do {
+                    let wl = try Listen(host: hostStr, port: p, options: opts)
+                    defer { wl.Close() }
+                    while true {
+                        let stream = try await wl.Accept()
+                        // Accepted here, served here: the task inherits
+                        // this worker.
+                        _ = Task { await h(stream) }
+                    }
+                } catch {
+                    // The worker's listener is gone; the main one goes on.
+                }
+            }
+            w += 1
+        }
+    }
+
     while true {
         let stream = try await l.Accept()
         // The task owns the stream from here, and closing it is the
         // handler's: nothing else can still be reading from it.
-        _ = Task { await handler(stream) }
+        let h = handler
+        _ = Task.detached { await h(stream) }
     }
 }
 
