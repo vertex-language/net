@@ -185,19 +185,18 @@ func encodeResponse(_ out: inout [uint8], _ writer: borrowing ResponseWriter, ke
 // request: HTTP/1.1 unless the client says close, HTTP/1.0 only if it
 // asks.
 func wantsKeepAlive(_ req: borrowing Request) -> bool {
-    let conn = req.Headers.Get("Connection")
-    if req.Proto == "HTTP/1.0" {
-        if let c = conn {
-            return equalFold(c, "keep-alive")
+    // A request the parser read says which span is Connection; one built
+    // some other way is looked up.
+    if req.connectionSpan >= 0 {
+        if req.minor == 0 {
+            return req.Headers.spanValueIs(req.connectionSpan, "keep-alive")
         }
-        return false
+        return !req.Headers.spanValueIs(req.connectionSpan, "close")
     }
-    if let c = conn {
-        if equalFold(c, "close") {
-            return false
-        }
+    if req.minor == 0 {
+        return req.Headers.valueIs("Connection", "keep-alive") ?? false
     }
-    return true
+    return !(req.Headers.valueIs("Connection", "close") ?? false)
 }
 
 /// ServeConn handles incoming HTTP client connections over plain TCP with keep-alive support.
@@ -212,6 +211,8 @@ public func ServeConn(stream: tcp.TcpStream, handle: (Request) async throws -> R
     var head = 0   // the first byte not yet consumed
     var tail = 0   // one past the last byte read
     var writeBuf: [uint8] = []
+    // One Request per connection, parsed into afresh each time.
+    var req = Request()
 
     while true {
         // The request's headers: whatever is buffered, then more until
@@ -249,9 +250,8 @@ public func ServeConn(stream: tcp.TcpStream, handle: (Request) async throws -> R
             }
         }
 
-        var req: Request
         do {
-            req = try Request.ParseHeaders(readBuf, from: head, headerEnd: headerEnd)
+            try Request.parse(into: &req, readBuf, from: head, headerEnd: headerEnd)
         } catch {
             return
         }
@@ -259,10 +259,8 @@ public func ServeConn(stream: tcp.TcpStream, handle: (Request) async throws -> R
         // The body, where there is one: Content-Length bytes after the
         // blank line, read into the same buffer.
         var bodyStart = headerEnd + 4
-        var expectedLen = 0
-        if let clVal = req.Headers.Get("Content-Length") {
-            expectedLen = parseContentLength(clVal)
-        }
+        // The parser read Content-Length on its way past.
+        let expectedLen = req.contentLength
         while tail - bodyStart < expectedLen {
             if tail == readBuf.count {
                 if head > 0 {

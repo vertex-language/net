@@ -68,6 +68,21 @@ public struct Header {
         }
     }
 
+    // setRaw makes raw hold src[from..<from+count], reusing its storage:
+    // it grows only when too short, and bytes past count are left as they
+    // were, since every span says where it ends.
+    mutating func setRaw(_ src: [uint8], from: int, count: int) {
+        if count <= 0 { return }
+        if raw.count < count {
+            raw.append(contentsOf: [uint8](repeating: 0, count: count - raw.count))
+        }
+        raw.withUnsafeMutableBytes { dp in
+            src.withUnsafeBytes { sp in
+                _ = c_memcpy(dp.baseAddress!, sp.baseAddress! + from, count)
+            }
+        }
+    }
+
     // addSpan records a header parsed in place. The bytes it points into
     // are the Header's own `raw`, set once for the whole block.
     mutating func addSpan(kStart: int, kLen: int, vStart: int, vLen: int) {
@@ -146,6 +161,41 @@ public struct Header {
         while i < entries.count {
             if equalFold(entries[i].Key, key) {
                 return entries[i].Value
+            }
+            i += 1
+        }
+        return nil
+    }
+
+    // spanValueIs reports whether span i's value equals value, ignoring
+    // case, comparing the bytes where they lie.
+    func spanValueIs(_ i: int, _ value: string) -> bool {
+        let sp = spans[i]
+        let same: bool = raw.withUnsafeBytes { rp in
+            equalFoldBytes(rp.baseAddress! + sp.vStart, int64(sp.vLen), value)
+        }
+        return same
+    }
+
+    // valueIs reports whether the header key is present with a value equal
+    // to value, ignoring case -- nil when it is absent. A parsed header is
+    // compared where its bytes lie, so asking makes no string.
+    func valueIs(_ key: string, _ value: string) -> bool? {
+        var i = 0
+        while i < spans.count {
+            if spanKeyEquals(spans[i], key) {
+                let sp = spans[i]
+                let same: bool = raw.withUnsafeBytes { rp in
+                    equalFoldBytes(rp.baseAddress! + sp.vStart, int64(sp.vLen), value)
+                }
+                return same
+            }
+            i += 1
+        }
+        i = 0
+        while i < entries.count {
+            if equalFold(entries[i].Key, key) {
+                return equalFold(entries[i].Value, value)
             }
             i += 1
         }

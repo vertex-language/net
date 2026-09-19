@@ -39,12 +39,33 @@ func parseContentLength(_ val: string) -> int {
     return n
 }
 
+// headerNameIs reports whether the bytes at raw[at...] spell name, which
+// is lowercase ASCII, ignoring the case of the bytes.
+func headerNameIs(_ raw: [uint8], _ at: int, _ name: string) -> bool {
+    var i = 0
+    for b in name.utf8 {
+        if at + i >= raw.count || (raw[at + i] | 32) != b {
+            return false
+        }
+        i += 1
+    }
+    return true
+}
+
 /// Request represents an HTTP request received by a server or to be sent by a client.
 public struct Request {
     public var Method: string
     public var URL: string
     public var Version: HttpVersion = HttpVersion.http1_1
     public var Proto: string = "HTTP/1.1"
+    // minor is the HTTP/1.x minor version the parser read: 0 for
+    // HTTP/1.0, which decides keep-alive, and 1 otherwise.
+    var minor: int = 1
+    // What the parser noticed on its way past, so that the server need
+    // not look headers up afterwards: Content-Length's value (0 when
+    // absent), and which span is Connection (-1 when absent).
+    var contentLength: int = 0
+    var connectionSpan: int = -1
     public var Headers: Header = Header()
     public var Body: [uint8] = []
 
@@ -135,6 +156,18 @@ public struct Request {
     /// looked at: a server that reads into one buffer per connection
     /// keeps the body, and the next request, where they are.
     public static func ParseHeaders(_ raw: [uint8], from: int, headerEnd: int) throws -> Request {
+        var req = Request()
+        try parse(into: &req, raw, from: from, headerEnd: headerEnd)
+        return req
+    }
+
+    /// parse is ParseHeaders into a Request that already exists: a server
+    /// keeps one per connection and parses each request into it, so the
+    /// arrays that hold the header block and its spans are allocated once
+    /// per connection rather than once per request. Every field the parse
+    /// sets is reset first; a handler that kept the previous request has
+    /// its own copy, since the arrays are copy-on-write.
+    static func parse(into req: inout Request, _ raw: [uint8], from: int, headerEnd: int) throws {
         var i = from
         while i < headerEnd && (raw[i] == 32 || raw[i] == 13 || raw[i] == 10) { i += 1 }
         let mStart = i
@@ -172,25 +205,46 @@ public struct Request {
         let pStart = i
         while i < headerEnd && raw[i] != 13 && raw[i] != 10 { i += 1 }
         let pLen = i - pStart
+        // HTTP/1.1 and HTTP/1.0 are literals, which cost nothing to make;
+        // anything else is read out of the buffer.
         var proto = "HTTP/1.1"
-        if pLen != 8 || raw[pStart] != 72 || raw[pStart+1] != 84 || raw[pStart+2] != 84 || raw[pStart+3] != 80 || raw[pStart+4] != 47 || raw[pStart+5] != 49 || raw[pStart+6] != 46 || raw[pStart+7] != 49 {
+        var minor = 1
+        if pLen == 8 && raw[pStart] == 72 && raw[pStart+1] == 84 && raw[pStart+2] == 84 && raw[pStart+3] == 80 && raw[pStart+4] == 47 && raw[pStart+5] == 49 && raw[pStart+6] == 46 && (raw[pStart+7] == 49 || raw[pStart+7] == 48) {
+            if raw[pStart+7] == 48 {
+                proto = "HTTP/1.0"
+                minor = 0
+            }
+        } else {
             proto = asciiString(raw, from: pStart, to: i)
         }
         while i < headerEnd && (raw[i] == 13 || raw[i] == 10) { i += 1 }
 
-        var req = Request(method: method, url: url, proto: proto)
+        req.Method = method
+        req.URL = url
+        req.Proto = proto
+        req.Version = HttpVersion.http1_1
+        req.minor = minor
+        req.contentLength = 0
+        req.connectionSpan = -1
+        if !req.Body.isEmpty { req.Body = [] }
+        if !req.Headers.entries.isEmpty { req.Headers.entries = [] }
+        req.Headers.spans.removeAll(keepingCapacity: true)
 
         // The header block is copied into the request once, and each
         // header recorded as spans into that copy: no string is made for
         // a name or value until something reads it. `from` is where the
         // request began in raw, so spans are relative to the copy.
         let blockStart = from
-        req.Headers.raw = sliceBytes(raw, from: blockStart, count: headerEnd - blockStart)
+        req.Headers.setRaw(raw, from: blockStart, count: headerEnd - blockStart)
         while i < headerEnd {
             let lineStart = i
             var colon = -1
-            while i < headerEnd && raw[i] != 13 && raw[i] != 10 {
-                if colon < 0 && raw[i] == 58 {
+            // Each byte is read once: the line's end and its first colon
+            // are found in the one pass.
+            while i < headerEnd {
+                let c = raw[i]
+                if c == 13 || c == 10 { break }
+                if c == 58 && colon < 0 {
                     colon = i
                 }
                 i += 1
@@ -207,13 +261,30 @@ public struct Request {
                 while vEnd > vStart && (raw[vEnd - 1] == 32 || raw[vEnd - 1] == 9) { vEnd -= 1 }
 
                 if kEnd > kStart {
-                    req.Headers.addSpan(kStart: kStart - blockStart, kLen: kEnd - kStart,
+                    let kLen = kEnd - kStart
+                    // The two headers the server acts on, told apart by
+                    // length and first letter before any comparison.
+                    let first = raw[kStart] | 32
+                    if first == 99 && kLen == 14 && headerNameIs(raw, kStart, "content-length") {
+                        var n = 0
+                        var d = vStart
+                        while d < vEnd {
+                            let b = raw[d]
+                            if b >= 48 && b <= 57 {
+                                n = n * 10 + int(b - 48)
+                            }
+                            d += 1
+                        }
+                        req.contentLength = n
+                    } else if first == 99 && kLen == 10 && headerNameIs(raw, kStart, "connection") {
+                        req.connectionSpan = req.Headers.spans.count
+                    }
+                    req.Headers.addSpan(kStart: kStart - blockStart, kLen: kLen,
                                         vStart: vStart - blockStart, vLen: vEnd - vStart)
                 }
             }
             while i < headerEnd && (raw[i] == 13 || raw[i] == 10) { i += 1 }
         }
-        return req
     }
 }
 
