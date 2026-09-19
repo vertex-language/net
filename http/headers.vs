@@ -29,6 +29,12 @@ func equalFold(_ a: string, _ b: string) -> bool
 @_silgen_name("vertex_string_from_utf8")
 func headerStringFromUtf8(_ ptr: UnsafeRawPointer, _ count: int64) -> string
 
+// The same comparison between bytes that are not yet a string -- a header
+// name where it lies in the parsed block -- and one that is, so that
+// looking a header up makes nothing.
+@_silgen_name("vertex_string_equal_fold_bytes")
+func equalFoldBytes(_ ptr: UnsafeRawPointer, _ count: int64, _ s: string) -> bool
+
 public struct Header {
     public var entries: [HeaderEntry] = []
     // A request parsed by the server keeps its headers as spans over the
@@ -57,18 +63,9 @@ public struct Header {
     // spanKeyEquals compares a span's name to key, case-insensitively,
     // without making the name into a string.
     func spanKeyEquals(_ span: HeaderSpan, _ key: string) -> bool {
-        let kb = key.utf8
-        if kb.count != span.kLen { return false }
-        var i = 0
-        while i < span.kLen {
-            var a = raw[span.kStart + i]
-            var b = kb[i]
-            if a >= 65 && a <= 90 { a += 32 }
-            if b >= 65 && b <= 90 { b += 32 }
-            if a != b { return false }
-            i += 1
+        return raw.withUnsafeBytes { rp in
+            equalFoldBytes(rp.baseAddress! + span.kStart, int64(span.kLen), key)
         }
-        return true
     }
 
     // addSpan records a header parsed in place. The bytes it points into
