@@ -202,8 +202,11 @@ public func (s: borrowing TcpStream) Write(_ data: borrowing [uint8]) async thro
     let fd = s.SocketFd
     var written = 0
     while written < data.count {
+        // A let, not the var: a closure captures a var by reference, which
+        // is a box on the heap (vsc does not promote it to a value yet).
+        let off = written
         let n = data.withUnsafeBytes { raw in
-            ctcp_write(fd, raw.baseAddress! + written, chunk(raw.count - written))
+            ctcp_write(fd, raw.baseAddress! + off, chunk(raw.count - off))
         }
         if n >= 0 {
             written += int(n)
@@ -218,8 +221,11 @@ public func (s: borrowing TcpStream) Write(_ data: borrowing ArraySlice<uint8>) 
     let fd = s.SocketFd
     var written = 0
     while written < data.count {
+        // A let, not the var: a closure captures a var by reference, which
+        // is a box on the heap (vsc does not promote it to a value yet).
+        let off = written
         let n = data.withUnsafeBytes { raw in
-            ctcp_write(fd, raw.baseAddress! + written, chunk(raw.count - written))
+            ctcp_write(fd, raw.baseAddress! + off, chunk(raw.count - off))
         }
         if n >= 0 {
             written += int(n)

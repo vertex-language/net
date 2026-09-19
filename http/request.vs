@@ -39,17 +39,17 @@ func parseContentLength(_ val: string) -> int {
     return n
 }
 
-// headerNameIs reports whether the bytes at raw[at...] spell name, which
-// is lowercase ASCII, ignoring the case of the bytes.
-func headerNameIs(_ raw: [uint8], _ at: int, _ name: string) -> bool {
-    var i = 0
-    for b in name.utf8 {
-        if at + i >= raw.count || (raw[at + i] | 32) != b {
-            return false
-        }
-        i += 1
+// headerNameIs reports whether the count bytes at raw[at...] spell name,
+// ignoring case, compared where they lie. (`name.utf8` would make an array
+// of name's bytes first: vsc does not use the view in place yet.)
+func headerNameIs(_ raw: [uint8], _ at: int, _ count: int, _ name: string) -> bool {
+    if at + count > raw.count {
+        return false
     }
-    return true
+    let same: bool = raw.withUnsafeBytes { rp in
+        equalFoldBytes(rp.baseAddress! + at, int64(count), name)
+    }
+    return same
 }
 
 /// Request represents an HTTP request received by a server or to be sent by a client.
@@ -265,7 +265,7 @@ public struct Request {
                     // The two headers the server acts on, told apart by
                     // length and first letter before any comparison.
                     let first = raw[kStart] | 32
-                    if first == 99 && kLen == 14 && headerNameIs(raw, kStart, "content-length") {
+                    if first == 99 && kLen == 14 && headerNameIs(raw, kStart, kLen, "content-length") {
                         var n = 0
                         var d = vStart
                         while d < vEnd {
@@ -276,7 +276,7 @@ public struct Request {
                             d += 1
                         }
                         req.contentLength = n
-                    } else if first == 99 && kLen == 10 && headerNameIs(raw, kStart, "connection") {
+                    } else if first == 99 && kLen == 10 && headerNameIs(raw, kStart, kLen, "connection") {
                         req.connectionSpan = req.Headers.spans.count
                     }
                     req.Headers.addSpan(kStart: kStart - blockStart, kLen: kLen,
