@@ -140,24 +140,13 @@ func socketAddress(of fd: int32, peer: bool) -> SocketAddress {
     return SocketAddress.fromC(ip: string(cString: text), port: port)
 }
 
-@_silgen_name("vertex_pal_getenv")
-func palGetenv(_ name: UnsafePointer<CChar>) -> UnsafePointer<CChar>?
+@_silgen_name("vertex_task_workers")
+func vertex_task_workers() -> int32
 
-@_silgen_name("vertex_pal_cpus")
-func palCpus() -> int32
-
-// poolSize is how many workers the runtime's pool has: what VERTEX_WORKERS
-// says, or one per processor. It is what `Serve` binds a listener per, on
-// a kernel that balances SO_REUSEPORT.
+// poolSize is how many workers the runtime's pool has -- VERTEX_WORKERS,
+// or one per processor but the main thread's -- as the runtime says: it
+// is what `Serve` binds a listener per, on a kernel that balances
+// SO_REUSEPORT. 0 where there is no pool.
 func poolSize() -> int {
-    let key = "VERTEX_WORKERS"
-    let val = key.withCString { k in palGetenv(k) }
-    if let v = val {
-        let s = string(cString: v)
-        if let n = int(s) {
-            return n
-        }
-    }
-    let c = int(palCpus())
-    return c > 0 ? c : 1
+    return int(vertex_task_workers())
 }
