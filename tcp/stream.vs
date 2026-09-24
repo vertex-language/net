@@ -216,6 +216,11 @@ public func (s: borrowing TcpStream) Write(_ data: borrowing [uint8]) async thro
     }
 }
 
+/// Nothing: a stream keeps no buffer of its own, so every Write has been
+/// handed to the kernel when it returns. It is here so that a TcpStream is
+/// an io.AsyncWriter; wrap it in io.AsyncBufferedWriter to gather writes.
+public func (s: borrowing TcpStream) Flush() {}
+
 /// Writes part of a buffer: `stream.Write(buffer[0..<n])`.
 public func (s: borrowing TcpStream) Write(_ data: borrowing ArraySlice<uint8>) async throws {
     let fd = s.SocketFd

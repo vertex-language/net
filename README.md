@@ -11,7 +11,7 @@ Standard networking library for the Vertex programming language, providing async
 
 ## Packages
 
-- **`net/tcp`**: Asynchronous stream connections and listeners over platform POSIX sockets (`tcp.Listen`, `tcp.Connect`, `tcp.TcpStream`, `tcp.TcpListener`).
+- **`net/tcp`**: Asynchronous stream connections and listeners over platform POSIX sockets (`tcp.Listen`, `tcp.Connect`, `tcp.TcpStream`, `tcp.TcpListener`). A `TcpStream` is an `io.AsyncReader` and `io.AsyncWriter`, so `io.AsyncBufferedReader(stream).ReadLine()` and `io.Copy` take it.
 - **`net/udp`**: Asynchronous datagram communication and peer binding (`udp.Bind`, `udp.UdpSocket`).
 - **`net/http`**: Unified multi-protocol HTTP client and server supporting:
   - **HTTP/1.1**: Plain TCP keep-alive and TLS 1.3 fallback.
