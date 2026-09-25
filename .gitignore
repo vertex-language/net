@@ -2,3 +2,8 @@
 
 # Build output.
 .build/
+
+# Local environment variables and secrets.
+.env
+*.env
+

@@ -355,6 +355,94 @@ func testQpackAndH3Framing() {
     }
 }
 
+// Reads a whole ResponseStream body, or nil if it throws.
+func readAll(_ s: inout http.ResponseStream) async -> string? {
+    var out: [uint8] = []
+    var buf = [uint8](repeating: 0, count: 7) // small, to split chunks
+    do {
+        while true {
+            let n = try await s.Read(into: &buf)
+            if n == 0 { break }
+            out.append(contentsOf: buf[0..<n])
+        }
+    } catch {
+        return nil
+    }
+    return String(decoding: out, as: UTF8.self)
+}
+
+// A server that answers each connection with the next canned response,
+// written in pieces, and closes it.
+func testStream() async {
+    let answers = [
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5;ext=1\r\nHello\r\nB\r\n, streamed!\r\n0\r\nX-Trailer: t\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nexactly 11!ignored after",
+        "HTTP/1.1 200 OK\r\n\r\nuntil the close",
+        "HTTP/1.1 200 OK\r\nContent-Length: 50\r\n\r\n",
+        "HTTP/1.1 206 Partial Content\r\nContent-Length: 20\r\n\r\ncut short",
+        "HTTP/1.1 302 Found\r\nLocation: https://cdn.example/x\r\nContent-Length: 3\r\n\r\nabc",
+    ]
+    do {
+        let listener = try tcp.Listen("127.0.0.1:0")
+        let port = listener.LocalAddress.Port()
+        let serverTask = Task { () async -> int in
+            var served = 0
+            for a in answers {
+                do {
+                    let conn = try await listener.Accept()
+                    var req = [uint8](repeating: 0, count: 4096)
+                    _ = try await conn.Read(into: &req)
+                    let bytes = [uint8](a.utf8)
+                    var at = 0
+                    while at < bytes.count {
+                        let end = at + 9 < bytes.count ? at + 9 : bytes.count
+                        try await conn.Write(Array(bytes[at..<end]))
+                        at = end
+                    }
+                    conn.Close()
+                    served += 1
+                } catch {
+                    break
+                }
+            }
+            return served
+        }
+        let c = http.Client()
+        let u = try http.URL.Parse("http://127.0.0.1:\(port)/x")
+
+        var s = try await c.Open(http.Request(method: "GET", url: "/x"), url: u)
+        check(s.Response.StatusCode == 200 && s.ContentLength == nil, "stream: chunked head")
+        check(await readAll(&s) == "Hello, streamed!", "stream: chunked body, extensions and trailers dropped")
+        s.Close()
+
+        s = try await c.Open(http.Request(method: "GET", url: "/x"), url: u)
+        check(s.ContentLength == 11, "stream: Content-Length")
+        check(await readAll(&s) == "exactly 11!", "stream: sized body stops at its length")
+        s.Close()
+
+        s = try await c.Open(http.Request(method: "GET", url: "/x"), url: u)
+        check(await readAll(&s) == "until the close", "stream: body read to the close")
+        s.Close()
+
+        s = try await c.Open(http.Request(method: "HEAD", url: "/x"), url: u)
+        check(s.ContentLength == nil && await readAll(&s) == "", "stream: HEAD has no body")
+        s.Close()
+
+        s = try await c.Open(http.Request(method: "GET", url: "/x"), url: u)
+        check(s.Response.StatusCode == 206 && await readAll(&s) == nil, "stream: a body cut short throws")
+        s.Close()
+
+        s = try await c.Open(http.Request(method: "GET", url: "/x"), url: u)
+        check(s.Response.StatusCode == 302 && s.Response.Headers.Get("Location") == "https://cdn.example/x", "stream: a redirect is returned, not followed")
+        s.Close()
+
+        check(await serverTask.value == answers.count, "stream: server answered each")
+        listener.Close()
+    } catch {
+        check(false, "stream: \(error)")
+    }
+}
+
 func main() async -> int32 {
     print("=== net/http Test Suite ===")
     testURL()
@@ -366,6 +454,7 @@ func main() async -> int32 {
     testH2Framing()
     testQpackAndH3Framing()
     await testRoundTrip()
+    await testStream()
     print(failures == 0 ? "All net/http tests passed!" : "\(failures) tests failed.")
     return int32(failures)
 }
