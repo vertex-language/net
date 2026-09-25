@@ -1,11 +1,11 @@
 # net
 
-[![package: stdlib](https://img.shields.io/badge/package-stdlib-f4f4f5?style=flat-square&labelColor=e4e4e7&color=18181b)](https://github.com/vertex-language)
+[![package: vs-package](https://img.shields.io/badge/package-vs--package-f4f4f5?style=flat-square&labelColor=e4e4e7&color=18181b)](https://github.com/vertex-language)
 [![networking: tcp | udp | quic](https://img.shields.io/badge/networking-tcp%20%7C%20udp%20%7C%20quic-f4f4f5?style=flat-square&labelColor=e4e4e7&color=18181b)](https://github.com/vertex-language/net)
 [![protocols: http1.1 | http2 | http3 | websocket | webrtc](https://img.shields.io/badge/protocols-http1.1%20%7C%20http2%20%7C%20http3%20%7C%20websocket%20%7C%20webrtc-f4f4f5?style=flat-square&labelColor=e4e4e7&color=18181b)](https://github.com/vertex-language/net)
 [![runtime: async](https://img.shields.io/badge/runtime-async-f4f4f5?style=flat-square&labelColor=e4e4e7&color=18181b)](https://github.com/vertex-language)
 
-Standard networking library for the Vertex programming language, providing asynchronous TCP and UDP platform primitives, pure-Vertex multi-protocol HTTP (HTTP/1.1, HTTP/2, HTTP/3), WebSocket (RFC 6455 over TCP/TLS), QUIC transport, and a full WebRTC real-time communication stack.
+Networking library providing asynchronous TCP and UDP socket primitives, multi-protocol HTTP (HTTP/1.1, HTTP/2, HTTP/3), WebSocket (RFC 6455), QUIC transport, and a WebRTC real-time communication stack.
 
 ---
 
@@ -16,7 +16,7 @@ Standard networking library for the Vertex programming language, providing async
 - **`net/http`**: Unified multi-protocol HTTP client and server supporting:
   - **HTTP/1.1**: Plain TCP keep-alive and TLS 1.3 fallback.
   - **HTTP/2**: RFC 9113 binary framing, stream multiplexing, and RFC 7541 HPACK compression negotiated via TLS 1.3 ALPN (`"h2"`).
-  - **HTTP/3**: RFC 9114 binary framing and RFC 9204 QPACK compression over pure-Vertex QUIC, discovered via RFC 7838 `Alt-Svc`.
+  - **HTTP/3**: RFC 9114 binary framing and RFC 9204 QPACK compression over QUIC, discovered via RFC 7838 `Alt-Svc`.
   - Public APIs: `http.Get`, `http.Post`, `http.Client`, `http.Server`, `http.ServeConn`, `http.ServeConnTls`.
 - **`net/websocket`**: RFC 6455 WebSocket client and server over plain TCP (`ws://`) and TLS 1.3 (`wss://`) with complete frame masking/demasking, ping/pong heartbeats, close handshakes, and fragment reassembly (`websocket.Connect`, `websocket.Upgrade`, `websocket.UpgradeTLS`, `websocket.Server`, `WebSocket`).
 - **`net/webtransport`**: RFC 9297 WebTransport over HTTP/3 and QUIC with multiplexed bidirectional and unidirectional reliable streams, unreliable datagrams (RFC 9221), HTTP/3 extended CONNECT session negotiation, and capsule protocol control signaling (`webtransport.Connect`, `webtransport.Listen`, `WebTransportSession`, `WebTransportStream`, `WebTransportListener`, `Upgrader`).
@@ -31,6 +31,12 @@ Standard networking library for the Vertex programming language, providing async
 ---
 
 ## Quick Start
+
+Run any entry point with:
+
+```bash
+vsc run main.vs
+```
 
 ### 1. Unified HTTP & HTTPS Client (HTTP/1.1, HTTP/2, HTTP/3)
 
