@@ -48,7 +48,7 @@ public func Bind(host: string = "0.0.0.0", port: uint16,
         flags |= BindFlag.reusePort
     }
     let fd = host.withCString { h in
-        cudp_bind(h, int32(port), flags)
+        sockBind(h, int32(port), flags)
     }
     if fd < 0 {
         throw errorFor(fd, "\(host):\(port)")
@@ -77,7 +77,7 @@ public func (s: borrowing UdpSocket) ReceiveFrom(
         var port: int32 = 0
         let n = buffer.withUnsafeMutableBytes { raw in
             text.withUnsafeMutableBufferPointer { tp in
-                cudp_recvfrom(fd, raw.baseAddress!, chunk(raw.count), tp.baseAddress,
+                sockRecvFrom(fd, raw.baseAddress!, chunk(raw.count), tp.baseAddress,
                               int32(tp.count), &port)
             }
         }
@@ -102,7 +102,7 @@ public func (s: borrowing UdpSocket) Receive(into buffer: inout [uint8]) async t
     let fd = s.SocketFd
     while true {
         let n = buffer.withUnsafeMutableBytes { raw in
-            cudp_recv(fd, raw.baseAddress!, chunk(raw.count))
+            sockRecv(fd, raw.baseAddress!, chunk(raw.count))
         }
         if n >= 0 {
             return int(n)
@@ -127,7 +127,7 @@ public func (s: borrowing UdpSocket) SendTo(
     while true {
         let n = data.withUnsafeBytes { raw in
             host.withCString { h in
-                cudp_sendto(fd, raw.baseAddress!, chunk(raw.count), h, port)
+                sockSendTo(fd, raw.baseAddress!, chunk(raw.count), h, port)
             }
         }
         if n >= 0 {
@@ -159,7 +159,7 @@ public func (s: borrowing UdpSocket) SendTo(
     while true {
         let n = data.withUnsafeBytes { raw in
             host.withCString { h in
-                cudp_sendto(fd, raw.baseAddress!, chunk(raw.count), h, port)
+                sockSendTo(fd, raw.baseAddress!, chunk(raw.count), h, port)
             }
         }
         if n >= 0 {
@@ -202,7 +202,7 @@ public func (s: borrowing UdpSocket) Send(_ data: borrowing [uint8]) async throw
     let fd = s.SocketFd
     while true {
         let n = data.withUnsafeBytes { raw in
-            cudp_send(fd, raw.baseAddress!, chunk(raw.count))
+            sockSend(fd, raw.baseAddress!, chunk(raw.count))
         }
         if n >= 0 {
             return int(n)
@@ -240,7 +240,7 @@ public func (s: inout UdpSocket) Connect(to address: SocketAddress) throws {
     let host = address.Host()
     let port = int32(address.Port())
     let rc = host.withCString { h in
-        cudp_connect(fd, h, port)
+        sockConnect(fd, h, port)
     }
     if rc < 0 {
         throw errorFor(rc, "connecting to \(address.ToString())")
@@ -249,7 +249,7 @@ public func (s: inout UdpSocket) Connect(to address: SocketAddress) throws {
 
 /// Disconnects this UDP socket, clearing the default peer.
 public func (s: inout UdpSocket) Disconnect() throws {
-    let rc = cudp_disconnect(s.SocketFd)
+    let rc = sockDisconnect(s.SocketFd)
     if rc < 0 {
         throw errorFor(rc, "disconnecting socket")
     }
@@ -274,7 +274,7 @@ public func (s: inout UdpSocket) SetWriteTimeout(ms: int32) {
 
 /// Enables or disables broadcast transmission (SO_BROADCAST).
 public func (s: borrowing UdpSocket) SetBroadcast(_ enabled: bool) throws {
-    let rc = cudp_set_broadcast(s.SocketFd, enabled ? 1 : 0)
+    let rc = sockSetBroadcast(s.SocketFd, enabled ? 1 : 0)
     if rc < 0 {
         throw errorFor(rc, "SO_BROADCAST")
     }
@@ -282,7 +282,7 @@ public func (s: borrowing UdpSocket) SetBroadcast(_ enabled: bool) throws {
 
 /// Configures OS socket receive and send buffer sizes.
 public func (s: borrowing UdpSocket) SetBufferSizes(receive: int32, send: int32) throws {
-    let rc = cudp_set_buffer_sizes(s.SocketFd, receive, send)
+    let rc = sockSetBufferSizes(s.SocketFd, receive, send)
     if rc < 0 {
         throw errorFor(rc, "SO_RCVBUF/SO_SNDBUF")
     }
@@ -290,7 +290,7 @@ public func (s: borrowing UdpSocket) SetBufferSizes(receive: int32, send: int32)
 
 /// Sets the IP Time-To-Live (TTL) field for outgoing datagrams.
 public func (s: borrowing UdpSocket) SetTTL(_ ttl: int32) throws {
-    let rc = cudp_set_ttl(s.SocketFd, ttl)
+    let rc = sockSetTtl(s.SocketFd, ttl)
     if rc < 0 {
         throw errorFor(rc, "IP_TTL")
     }
@@ -304,12 +304,12 @@ public func (s: borrowing UdpSocket) JoinMulticast(
     if let iface = interface {
         rc = group.withCString { g -> int32 in
             iface.withCString { i -> int32 in
-                cudp_join_multicast(fd, g, i)
+                sockJoinMulticast(fd, g, i)
             }
         }
     } else {
         rc = group.withCString { g -> int32 in
-            cudp_join_multicast(fd, g, nil)
+            sockJoinMulticast(fd, g, nil)
         }
     }
     if rc < 0 {
@@ -325,12 +325,12 @@ public func (s: borrowing UdpSocket) LeaveMulticast(
     if let iface = interface {
         rc = group.withCString { g -> int32 in
             iface.withCString { i -> int32 in
-                cudp_leave_multicast(fd, g, i)
+                sockLeaveMulticast(fd, g, i)
             }
         }
     } else {
         rc = group.withCString { g -> int32 in
-            cudp_leave_multicast(fd, g, nil)
+            sockLeaveMulticast(fd, g, nil)
         }
     }
     if rc < 0 {
@@ -340,7 +340,7 @@ public func (s: borrowing UdpSocket) LeaveMulticast(
 
 /// Controls whether multicast packets are looped back to the local socket.
 public func (s: borrowing UdpSocket) SetMulticastLoopback(_ enabled: bool) throws {
-    let rc = cudp_set_multicast_loopback(s.SocketFd, enabled ? 1 : 0)
+    let rc = sockSetMulticastLoopback(s.SocketFd, enabled ? 1 : 0)
     if rc < 0 {
         throw errorFor(rc, "IP_MULTICAST_LOOP")
     }
@@ -348,7 +348,7 @@ public func (s: borrowing UdpSocket) SetMulticastLoopback(_ enabled: bool) throw
 
 /// Sets the TTL for outgoing multicast packets.
 public func (s: borrowing UdpSocket) SetMulticastTTL(_ ttl: int32) throws {
-    let rc = cudp_set_multicast_ttl(s.SocketFd, ttl)
+    let rc = sockSetMulticastTtl(s.SocketFd, ttl)
     if rc < 0 {
         throw errorFor(rc, "IP_MULTICAST_TTL")
     }
@@ -356,5 +356,5 @@ public func (s: borrowing UdpSocket) SetMulticastTTL(_ ttl: int32) throws {
 
 /// Closes the socket descriptor. Consumes the socket.
 public func (s: consuming UdpSocket) Close() {
-    _ = cudp_close(s.SocketFd)
+    _ = sockClose(s.SocketFd)
 }

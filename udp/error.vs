@@ -40,7 +40,7 @@ public enum UdpError: Error {
     }
 }
 
-// errorFor translates a negative cudp result code into a UdpError.
+// errorFor translates a negative sock.cpp result code into a UdpError.
 func errorFor(_ code: int32, _ context: string) -> UdpError {
     switch code {
     case Code.refused: return .connectionRefused(context)
@@ -52,6 +52,6 @@ func errorFor(_ code: int32, _ context: string) -> UdpError {
     case Code.invalidAddress: return .invalidAddress(context)
     case Code.tooLarge: return .datagramTooLarge(context)
     case Code.notConnected: return .notConnected(context)
-    default: return .systemError(code: cudp_last_error(), context: context)
+    default: return .systemError(code: sockLastError(), context: context)
     }
 }

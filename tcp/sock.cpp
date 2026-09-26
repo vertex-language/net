@@ -1,5 +1,15 @@
-#include "ctcp.h"
-
+// The operating system's TCP sockets, for package net/tcp. It is the only
+// part of net/tcp that knows what a sockaddr is.
+//
+// Every socket handed back is non-blocking. An operation that cannot be
+// finished now returns Code::wouldBlock rather than waiting, and the
+// caller waits for readiness however it wants to -- net/tcp hands that to
+// the Vertex runtime, so that waiting inside a task suspends the task
+// rather than the thread. Nothing here waits on a descriptor, and nothing
+// here knows about tasks.
+module;
+#include <stdint.h>
+#include <stddef.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -25,6 +35,37 @@
     #define GET_LAST_ERROR() errno
 #endif
 
+export module net.tcp;
+import vertex.task;
+
+// Error codes. Every function here returns a negative one of these on
+// failure, and 0 or a useful count on success.
+export namespace Code {
+    constexpr int32_t ok = 0;
+    constexpr int32_t generic = -1;
+    constexpr int32_t refused = -2;
+    constexpr int32_t timedOut = -3;
+    constexpr int32_t addressInUse = -4;
+    constexpr int32_t reset = -5;
+    constexpr int32_t brokenPipe = -6;
+    constexpr int32_t unreachable = -7;
+    constexpr int32_t invalidAddress = -8;
+    constexpr int32_t wouldBlock = -9;
+}
+
+// Socket options for sockListen. Every listener is non-blocking, so there
+// is no flag for that.
+export namespace ListenFlag {
+    constexpr int32_t reuseAddress = 1;
+    constexpr int32_t reusePort = 2;
+}
+
+// What a wait is waiting for, as sockWait takes it.
+export namespace Ready {
+    constexpr int32_t readable = 1;
+    constexpr int32_t writable = 2;
+}
+
 namespace {
 
 static void init_network() {
@@ -44,33 +85,33 @@ static void init_network() {
 static int map_error(int err) {
 #if defined(_WIN32)
     switch (err) {
-        case WSAECONNREFUSED: return CTCP_ERR_REFUSED;
-        case WSAETIMEDOUT:    return CTCP_ERR_TIMED_OUT;
-        case WSAEADDRINUSE:   return CTCP_ERR_ADDR_IN_USE;
-        case WSAECONNRESET:   return CTCP_ERR_RESET;
-        case WSAENETUNREACH:  return CTCP_ERR_UNREACHABLE;
-        case WSAEHOSTUNREACH: return CTCP_ERR_UNREACHABLE;
-        case WSAEWOULDBLOCK:  return CTCP_ERR_WOULD_BLOCK;
-        case WSAEINPROGRESS:  return CTCP_ERR_WOULD_BLOCK;
-        case WSAEALREADY:     return CTCP_ERR_WOULD_BLOCK;
-        default:              return CTCP_ERR_GENERIC;
+        case WSAECONNREFUSED: return Code::refused;
+        case WSAETIMEDOUT:    return Code::timedOut;
+        case WSAEADDRINUSE:   return Code::addressInUse;
+        case WSAECONNRESET:   return Code::reset;
+        case WSAENETUNREACH:  return Code::unreachable;
+        case WSAEHOSTUNREACH: return Code::unreachable;
+        case WSAEWOULDBLOCK:  return Code::wouldBlock;
+        case WSAEINPROGRESS:  return Code::wouldBlock;
+        case WSAEALREADY:     return Code::wouldBlock;
+        default:              return Code::generic;
     }
 #else
     switch (err) {
-        case ECONNREFUSED: return CTCP_ERR_REFUSED;
-        case ETIMEDOUT:    return CTCP_ERR_TIMED_OUT;
-        case EADDRINUSE:   return CTCP_ERR_ADDR_IN_USE;
-        case ECONNRESET:   return CTCP_ERR_RESET;
-        case EPIPE:        return CTCP_ERR_BROKEN_PIPE;
-        case ENETUNREACH:  return CTCP_ERR_UNREACHABLE;
-        case EHOSTUNREACH: return CTCP_ERR_UNREACHABLE;
-        case EAGAIN:       return CTCP_ERR_WOULD_BLOCK;
-        case EINPROGRESS:  return CTCP_ERR_WOULD_BLOCK;
-        case EALREADY:     return CTCP_ERR_WOULD_BLOCK;
+        case ECONNREFUSED: return Code::refused;
+        case ETIMEDOUT:    return Code::timedOut;
+        case EADDRINUSE:   return Code::addressInUse;
+        case ECONNRESET:   return Code::reset;
+        case EPIPE:        return Code::brokenPipe;
+        case ENETUNREACH:  return Code::unreachable;
+        case EHOSTUNREACH: return Code::unreachable;
+        case EAGAIN:       return Code::wouldBlock;
+        case EINPROGRESS:  return Code::wouldBlock;
+        case EALREADY:     return Code::wouldBlock;
 #if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
-        case EWOULDBLOCK:  return CTCP_ERR_WOULD_BLOCK;
+        case EWOULDBLOCK:  return Code::wouldBlock;
 #endif
-        default:           return CTCP_ERR_GENERIC;
+        default:           return Code::generic;
     }
 #endif
 }
@@ -143,25 +184,26 @@ static int lookup(const char* host, int32_t port, bool passive, struct addrinfo*
 
     const char* node = (host && host[0] != '\0') ? host : nullptr;
     if (!passive && node == nullptr) {
-        return CTCP_ERR_INVALID_ADDR;
+        return Code::invalidAddress;
     }
     *out = nullptr;
     if (getaddrinfo(node, port_str, &hints, out) != 0 || *out == nullptr) {
-        return CTCP_ERR_INVALID_ADDR;
+        return Code::invalidAddress;
     }
-    return CTCP_OK;
+    return Code::ok;
 }
 
 } // anonymous namespace
 
-extern "C" {
-
-int32_t ctcp_listen(const char* host, int32_t port, int32_t backlog, int32_t flags) {
+// Binds host ("0.0.0.0", "127.0.0.1", or NULL/"" for any) and port and
+// listens. Port 0 asks the kernel for a free one; sockGetSockname says
+// which. Returns the listening socket, or a negative error code.
+export int32_t sockListen(const char* host, int32_t port, int32_t backlog, int32_t flags) noexcept {
     init_network();
 
     struct addrinfo* res = nullptr;
     int rc = lookup(host, port, true, &res);
-    if (rc != CTCP_OK) {
+    if (rc != Code::ok) {
         return rc;
     }
 
@@ -175,11 +217,11 @@ int32_t ctcp_listen(const char* host, int32_t port, int32_t backlog, int32_t fla
         }
 
         int opt = 1;
-        if (flags & CTCP_LISTEN_REUSE_ADDR) {
+        if (flags & ListenFlag::reuseAddress) {
             setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
         }
 #if defined(SO_REUSEPORT)
-        if (flags & CTCP_LISTEN_REUSE_PORT) {
+        if (flags & ListenFlag::reusePort) {
             setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, reinterpret_cast<const char*>(&opt), sizeof(opt));
         }
 #endif
@@ -210,8 +252,12 @@ int32_t ctcp_listen(const char* host, int32_t port, int32_t backlog, int32_t fla
     return fd;
 }
 
-int32_t ctcp_accept(int32_t listener_fd, char* client_ip_out, int32_t ip_max_len,
-                    int32_t* client_port_out) {
+// Takes the next connection off the listener's queue. Fills client_ip_out
+// (null-terminated) and client_port_out when they are not NULL. Returns
+// the accepted socket, Code::wouldBlock when none is waiting, or
+// another negative error code.
+export int32_t sockAccept(int32_t listener_fd, char* client_ip_out, int32_t ip_max_len,
+                          int32_t* client_port_out) noexcept {
     struct sockaddr_storage addr;
     memset(&addr, 0, sizeof(addr));
     socklen_t len = sizeof(addr);
@@ -248,12 +294,16 @@ int32_t ctcp_accept(int32_t listener_fd, char* client_ip_out, int32_t ip_max_len
     return client_fd;
 }
 
-int32_t ctcp_connect_begin(const char* host, int32_t port) {
+// Starts connecting to host and port. Returns a socket on which the
+// connection is either already established or still in progress -- wait
+// for it to become writable, then ask sockConnectCheck -- or a negative
+// error code if it could not be started at all.
+export int32_t sockConnectBegin(const char* host, int32_t port) noexcept {
     init_network();
 
     struct addrinfo* res = nullptr;
     int rc = lookup(host, port, false, &res);
-    if (rc != CTCP_OK) {
+    if (rc != Code::ok) {
         return rc;
     }
 
@@ -275,7 +325,7 @@ int32_t ctcp_connect_begin(const char* host, int32_t port) {
         if (connect(fd, p->ai_addr, static_cast<socklen_t>(p->ai_addrlen)) == 0) {
             break;  // connected straight away, as loopback often does
         }
-        if (map_error(GET_LAST_ERROR()) == CTCP_ERR_WOULD_BLOCK) {
+        if (map_error(GET_LAST_ERROR()) == Code::wouldBlock) {
             break;  // under way; the caller waits for it to become writable
         }
         last_err = GET_LAST_ERROR();
@@ -290,7 +340,9 @@ int32_t ctcp_connect_begin(const char* host, int32_t port) {
     return fd;
 }
 
-int32_t ctcp_connect_check(int32_t fd) {
+// Whether a socket from sockConnectBegin is connected: Code::ok, or the
+// negative error code the attempt failed with.
+export int32_t sockConnectCheck(int32_t fd) noexcept {
     int so_error = 0;
     socklen_t len = sizeof(so_error);
     if (getsockopt(fd, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&so_error), &len) != 0) {
@@ -299,12 +351,15 @@ int32_t ctcp_connect_check(int32_t fd) {
     if (so_error != 0) {
         return map_error(so_error);
     }
-    return CTCP_OK;
+    return Code::ok;
 }
 
-int32_t ctcp_read(int32_t fd, void* buf, int32_t count) {
+// Reads up to count bytes into buf. Returns the number read, 0 at the end
+// of the stream, Code::wouldBlock when nothing has arrived, or
+// another negative error code.
+export int32_t sockRead(int32_t fd, void* buf, int32_t count) noexcept {
     if (fd < 0 || !buf || count <= 0) {
-        return CTCP_ERR_GENERIC;
+        return Code::generic;
     }
     ssize_t n = recv(fd, reinterpret_cast<char*>(buf), static_cast<size_t>(count), 0);
     if (n < 0) {
@@ -313,9 +368,12 @@ int32_t ctcp_read(int32_t fd, void* buf, int32_t count) {
     return static_cast<int32_t>(n);
 }
 
-int32_t ctcp_write(int32_t fd, const void* buf, int32_t count) {
+// Writes up to count bytes from buf. Returns the number written, which
+// may be fewer than asked, Code::wouldBlock when the socket cannot
+// take any, or another negative error code.
+export int32_t sockWrite(int32_t fd, const void* buf, int32_t count) noexcept {
     if (fd < 0 || !buf || count < 0) {
-        return CTCP_ERR_GENERIC;
+        return Code::generic;
     }
     int flags = 0;
 #if defined(MSG_NOSIGNAL)
@@ -328,39 +386,47 @@ int32_t ctcp_write(int32_t fd, const void* buf, int32_t count) {
     return static_cast<int32_t>(n);
 }
 
-int32_t ctcp_close(int32_t fd) {
+// Closes a socket. Returns Code::ok, or a negative error code.
+export int32_t sockClose(int32_t fd) noexcept {
     if (fd < 0) {
-        return CTCP_OK;
+        return Code::ok;
     }
-    return CLOSE_SOCKET(fd) == 0 ? CTCP_OK : map_error(GET_LAST_ERROR());
+    return CLOSE_SOCKET(fd) == 0 ? Code::ok : map_error(GET_LAST_ERROR());
 }
 
-int32_t ctcp_shutdown(int32_t fd, int32_t how) {
+// Closes the reading half (0), the writing half (1), or both (2).
+export int32_t sockShutdown(int32_t fd, int32_t how) noexcept {
     if (fd < 0) {
-        return CTCP_ERR_GENERIC;
+        return Code::generic;
     }
 #if defined(_WIN32)
     int sh = (how == 0) ? SD_RECEIVE : (how == 1 ? SD_SEND : SD_BOTH);
 #else
     int sh = (how == 0) ? SHUT_RD : (how == 1 ? SHUT_WR : SHUT_RDWR);
 #endif
-    return shutdown(fd, sh) == 0 ? CTCP_OK : map_error(GET_LAST_ERROR());
+    return shutdown(fd, sh) == 0 ? Code::ok : map_error(GET_LAST_ERROR());
 }
 
-int32_t ctcp_wait(int32_t fd, int32_t events, int32_t timeout_ms) {
+// Waits with this thread until fd is ready, up to timeout_ms (negative:
+// for as long as it takes). 1 ready, 0 timed out, negative error.
+//
+// net/tcp does not call this -- it waits through the Vertex runtime, so
+// that a task waiting does not stop the thread. It is here for C callers
+// and as the plain meaning of what the runtime does.
+export int32_t sockWait(int32_t fd, int32_t events, int32_t timeout_ms) noexcept {
     if (fd < 0) {
-        return CTCP_ERR_GENERIC;
+        return Code::generic;
     }
 #if defined(_WIN32)
     WSAPOLLFD p;
     p.fd = fd;
-    p.events = (events == CTCP_WRITABLE) ? POLLWRNORM : POLLRDNORM;
+    p.events = (events == Ready::writable) ? POLLWRNORM : POLLRDNORM;
     p.revents = 0;
     int n = WSAPoll(&p, 1, timeout_ms);
 #else
     struct pollfd p;
     p.fd = fd;
-    p.events = (events == CTCP_WRITABLE) ? POLLOUT : POLLIN;
+    p.events = (events == Ready::writable) ? POLLOUT : POLLIN;
     p.revents = 0;
     int n = poll(&p, 1, timeout_ms);
 #endif
@@ -370,14 +436,16 @@ int32_t ctcp_wait(int32_t fd, int32_t events, int32_t timeout_ms) {
     return n > 0 ? 1 : 0;
 }
 
-int32_t ctcp_set_nodelay(int32_t fd, int32_t enabled) {
+// Sets TCP_NODELAY (1 sends small writes at once, 0 lets Nagle collect them).
+export int32_t sockSetNodelay(int32_t fd, int32_t enabled) noexcept {
     int opt = enabled ? 1 : 0;
     return setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
                       reinterpret_cast<const char*>(&opt), sizeof(opt)) == 0
-        ? CTCP_OK : map_error(GET_LAST_ERROR());
+        ? Code::ok : map_error(GET_LAST_ERROR());
 }
 
-int32_t ctcp_set_keepalive(int32_t fd, int32_t enabled, int32_t idle_secs) {
+// Sets SO_KEEPALIVE, and the idle seconds before the first probe.
+export int32_t sockSetKeepalive(int32_t fd, int32_t enabled, int32_t idle_secs) noexcept {
     int opt = enabled ? 1 : 0;
     if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE,
                    reinterpret_cast<const char*>(&opt), sizeof(opt)) != 0) {
@@ -394,10 +462,11 @@ int32_t ctcp_set_keepalive(int32_t fd, int32_t enabled, int32_t idle_secs) {
                    reinterpret_cast<const char*>(&idle_secs), sizeof(idle_secs));
     }
 #endif
-    return CTCP_OK;
+    return Code::ok;
 }
 
-int32_t ctcp_set_buffer_sizes(int32_t fd, int32_t rcvbuf, int32_t sndbuf) {
+// Sets SO_RCVBUF and SO_SNDBUF in bytes. 0 leaves that one alone.
+export int32_t sockSetBufferSizes(int32_t fd, int32_t rcvbuf, int32_t sndbuf) noexcept {
     if (rcvbuf > 0 && setsockopt(fd, SOL_SOCKET, SO_RCVBUF,
                                  reinterpret_cast<const char*>(&rcvbuf), sizeof(rcvbuf)) != 0) {
         return map_error(GET_LAST_ERROR());
@@ -406,10 +475,11 @@ int32_t ctcp_set_buffer_sizes(int32_t fd, int32_t rcvbuf, int32_t sndbuf) {
                                  reinterpret_cast<const char*>(&sndbuf), sizeof(sndbuf)) != 0) {
         return map_error(GET_LAST_ERROR());
     }
-    return CTCP_OK;
+    return Code::ok;
 }
 
-int32_t ctcp_get_sockname(int32_t fd, char* ip_out, int32_t ip_max_len, int32_t* port_out) {
+// The address a socket is bound to, and the one it is connected to.
+export int32_t sockGetSockname(int32_t fd, char* ip_out, int32_t ip_max_len, int32_t* port_out) noexcept {
     struct sockaddr_storage addr;
     memset(&addr, 0, sizeof(addr));
     socklen_t len = sizeof(addr);
@@ -417,10 +487,12 @@ int32_t ctcp_get_sockname(int32_t fd, char* ip_out, int32_t ip_max_len, int32_t*
         return map_error(GET_LAST_ERROR());
     }
     format_address(&addr, ip_out, ip_max_len, port_out);
-    return CTCP_OK;
+    return Code::ok;
 }
 
-int32_t ctcp_get_peername(int32_t fd, char* ip_out, int32_t ip_max_len, int32_t* port_out) {
+// sockGetPeername is sockGetSockname for the address a socket is
+// connected to.
+export int32_t sockGetPeername(int32_t fd, char* ip_out, int32_t ip_max_len, int32_t* port_out) noexcept {
     struct sockaddr_storage addr;
     memset(&addr, 0, sizeof(addr));
     socklen_t len = sizeof(addr);
@@ -428,19 +500,27 @@ int32_t ctcp_get_peername(int32_t fd, char* ip_out, int32_t ip_max_len, int32_t*
         return map_error(GET_LAST_ERROR());
     }
     format_address(&addr, ip_out, ip_max_len, port_out);
-    return CTCP_OK;
+    return Code::ok;
 }
 
-int32_t ctcp_resolve(const char* host, int32_t port, char* ips_out, int32_t ip_max_len,
-                     int32_t max_results, int32_t* families_out) {
+// Resolves host to at most max_results stream addresses for port. Result
+// i is written null-terminated at ips_out + i * ip_max_len, and its
+// family (4 or 6) at families_out[i]. Returns how many were written, or a
+// negative error code.
+//
+// This is the one call here that waits: the platform's resolver is
+// blocking, and a lookup stops the thread. A program that cannot afford
+// that should resolve before it starts serving.
+export int32_t sockResolve(const char* host, int32_t port, char* ips_out, int32_t ip_max_len,
+                           int32_t max_results, int32_t* families_out) noexcept {
     init_network();
 
     if (!ips_out || ip_max_len <= 0 || max_results <= 0) {
-        return CTCP_ERR_INVALID_ADDR;
+        return Code::invalidAddress;
     }
     struct addrinfo* res = nullptr;
     int rc = lookup(host, port, false, &res);
-    if (rc != CTCP_OK) {
+    if (rc != Code::ok) {
         return rc;
     }
 
@@ -463,11 +543,18 @@ int32_t ctcp_resolve(const char* host, int32_t port, char* ips_out, int32_t ip_m
     return n;
 }
 
-int32_t ctcp_last_error(void) {
+// The last error the operating system reported, as its own number: errno,
+// or WSAGetLastError. For a message alongside a mapped code, never for
+// deciding what went wrong.
+export int32_t sockLastError() noexcept {
     return GET_LAST_ERROR();
 }
 
-int32_t ctcp_reuseport_balances(void) {
+// Whether the kernel spreads connections across sockets bound with
+// SO_REUSEPORT. Linux hashes each connection to one of them; Darwin and
+// the BSDs hand every connection to a single socket, so a listener per
+// worker does nothing there and a server distributes connections itself.
+export int32_t sockReuseportBalances() noexcept {
 #if defined(__linux__)
     return 1;
 #else
@@ -475,4 +562,10 @@ int32_t ctcp_reuseport_balances(void) {
 #endif
 }
 
-} // extern "C"
+// sockWorkers is how many workers the runtime's pool has -- VERTEX_WORKERS,
+// or one per processor but the main thread's -- as the runtime says: it is
+// what Serve binds a listener per, on a kernel that balances SO_REUSEPORT.
+// 0 where there is no pool.
+export int32_t sockWorkers() noexcept {
+    return vertex_task_workers();
+}

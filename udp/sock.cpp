@@ -1,5 +1,8 @@
-#include "cudp.h"
-
+// The operating system's UDP sockets, for package net/udp. It is the only
+// part of net/udp that knows what a sockaddr is.
+module;
+#include <stdint.h>
+#include <stddef.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -25,6 +28,37 @@
     #define GET_LAST_ERROR() errno
 #endif
 
+export module net.udp;
+
+// Error codes. Every function here returns a negative one of these on
+// failure, and 0 or a useful count on success.
+export namespace Code {
+    constexpr int32_t ok = 0;
+    constexpr int32_t generic = -1;
+    constexpr int32_t refused = -2;
+    constexpr int32_t timedOut = -3;
+    constexpr int32_t addressInUse = -4;
+    constexpr int32_t reset = -5;
+    constexpr int32_t brokenPipe = -6;
+    constexpr int32_t unreachable = -7;
+    constexpr int32_t invalidAddress = -8;
+    constexpr int32_t wouldBlock = -9;
+    constexpr int32_t tooLarge = -10;
+    constexpr int32_t notConnected = -11;
+}
+
+// Flags for sockBind.
+export namespace BindFlag {
+    constexpr int32_t reuseAddress = 1;
+    constexpr int32_t reusePort = 2;
+}
+
+// What a wait is waiting for.
+export namespace Ready {
+    constexpr int32_t readable = 1;
+    constexpr int32_t writable = 2;
+}
+
 namespace {
 
 static void init_network() {
@@ -41,33 +75,33 @@ static void init_network() {
 static int map_error(int err) {
 #if defined(_WIN32)
     switch (err) {
-        case WSAECONNREFUSED: return CUDP_ERR_REFUSED;
-        case WSAETIMEDOUT:    return CUDP_ERR_TIMED_OUT;
-        case WSAEADDRINUSE:   return CUDP_ERR_ADDR_IN_USE;
-        case WSAECONNRESET:   return CUDP_ERR_RESET;
-        case WSAENETUNREACH:  return CUDP_ERR_UNREACHABLE;
-        case WSAEHOSTUNREACH: return CUDP_ERR_UNREACHABLE;
-        case WSAEWOULDBLOCK:  return CUDP_ERR_WOULD_BLOCK;
-        case WSAEMSGSIZE:     return CUDP_ERR_TOO_LARGE;
-        case WSAENOTCONN:     return CUDP_ERR_NOT_CONNECTED;
-        default:              return CUDP_ERR_GENERIC;
+        case WSAECONNREFUSED: return Code::refused;
+        case WSAETIMEDOUT:    return Code::timedOut;
+        case WSAEADDRINUSE:   return Code::addressInUse;
+        case WSAECONNRESET:   return Code::reset;
+        case WSAENETUNREACH:  return Code::unreachable;
+        case WSAEHOSTUNREACH: return Code::unreachable;
+        case WSAEWOULDBLOCK:  return Code::wouldBlock;
+        case WSAEMSGSIZE:     return Code::tooLarge;
+        case WSAENOTCONN:     return Code::notConnected;
+        default:              return Code::generic;
     }
 #else
     switch (err) {
-        case ECONNREFUSED: return CUDP_ERR_REFUSED;
-        case ETIMEDOUT:    return CUDP_ERR_TIMED_OUT;
-        case EADDRINUSE:   return CUDP_ERR_ADDR_IN_USE;
-        case ECONNRESET:   return CUDP_ERR_RESET;
-        case EPIPE:        return CUDP_ERR_BROKEN_PIPE;
-        case ENETUNREACH:  return CUDP_ERR_UNREACHABLE;
-        case EHOSTUNREACH: return CUDP_ERR_UNREACHABLE;
-        case EAGAIN:       return CUDP_ERR_WOULD_BLOCK;
+        case ECONNREFUSED: return Code::refused;
+        case ETIMEDOUT:    return Code::timedOut;
+        case EADDRINUSE:   return Code::addressInUse;
+        case ECONNRESET:   return Code::reset;
+        case EPIPE:        return Code::brokenPipe;
+        case ENETUNREACH:  return Code::unreachable;
+        case EHOSTUNREACH: return Code::unreachable;
+        case EAGAIN:       return Code::wouldBlock;
 #if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
-        case EWOULDBLOCK:  return CUDP_ERR_WOULD_BLOCK;
+        case EWOULDBLOCK:  return Code::wouldBlock;
 #endif
-        case EMSGSIZE:     return CUDP_ERR_TOO_LARGE;
-        case ENOTCONN:     return CUDP_ERR_NOT_CONNECTED;
-        default:           return CUDP_ERR_GENERIC;
+        case EMSGSIZE:     return Code::tooLarge;
+        case ENOTCONN:     return Code::notConnected;
+        default:           return Code::generic;
     }
 #endif
 }
@@ -126,25 +160,26 @@ static int lookup(const char* host, int32_t port, bool passive, struct addrinfo*
 
     const char* node = (host && host[0] != '\0') ? host : nullptr;
     if (!passive && node == nullptr) {
-        return CUDP_ERR_INVALID_ADDR;
+        return Code::invalidAddress;
     }
     *out = nullptr;
     if (getaddrinfo(node, port_str, &hints, out) != 0 || *out == nullptr) {
-        return CUDP_ERR_INVALID_ADDR;
+        return Code::invalidAddress;
     }
-    return CUDP_OK;
+    return Code::ok;
 }
 
 } // anonymous namespace
 
-extern "C" {
-
-int32_t cudp_bind(const char* host, int32_t port, int32_t flags) {
+// Binds host ("0.0.0.0", "127.0.0.1", or NULL/"" for any) and port.
+// Port 0 asks the kernel for a free one; sockGetSockname says which.
+// Returns the socket file descriptor, or a negative error code.
+export int32_t sockBind(const char* host, int32_t port, int32_t flags) noexcept {
     init_network();
 
     struct addrinfo* res = nullptr;
     int rc = lookup(host, port, true, &res);
-    if (rc != CUDP_OK) {
+    if (rc != Code::ok) {
         return rc;
     }
 
@@ -158,11 +193,11 @@ int32_t cudp_bind(const char* host, int32_t port, int32_t flags) {
         }
 
         int opt = 1;
-        if (flags & CUDP_BIND_REUSE_ADDR) {
+        if (flags & BindFlag::reuseAddress) {
             setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
         }
 #if defined(SO_REUSEPORT)
-        if (flags & CUDP_BIND_REUSE_PORT) {
+        if (flags & BindFlag::reusePort) {
             setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, reinterpret_cast<const char*>(&opt), sizeof(opt));
         }
 #endif
@@ -187,15 +222,16 @@ int32_t cudp_bind(const char* host, int32_t port, int32_t flags) {
     return fd;
 }
 
-int32_t cudp_connect(int32_t fd, const char* host, int32_t port) {
+// Connects a UDP socket to a remote host and port.
+export int32_t sockConnect(int32_t fd, const char* host, int32_t port) noexcept {
     init_network();
     if (fd < 0) {
-        return CUDP_ERR_GENERIC;
+        return Code::generic;
     }
 
     struct addrinfo* res = nullptr;
     int rc = lookup(host, port, false, &res);
-    if (rc != CUDP_OK) {
+    if (rc != Code::ok) {
         return rc;
     }
 
@@ -213,12 +249,13 @@ int32_t cudp_connect(int32_t fd, const char* host, int32_t port) {
     if (result != 0) {
         return map_error(last_err);
     }
-    return CUDP_OK;
+    return Code::ok;
 }
 
-int32_t cudp_disconnect(int32_t fd) {
+// Disconnects a previously connected UDP socket.
+export int32_t sockDisconnect(int32_t fd) noexcept {
     if (fd < 0) {
-        return CUDP_ERR_GENERIC;
+        return Code::generic;
     }
 #if defined(_WIN32)
     struct sockaddr_in sa;
@@ -238,11 +275,14 @@ int32_t cudp_disconnect(int32_t fd) {
         }
     }
 #endif
-    return CUDP_OK;
+    return Code::ok;
 }
 
-int32_t cudp_recvfrom(int32_t fd, void* buf, int32_t count, char* sender_ip_out,
-                      int32_t ip_max_len, int32_t* sender_port_out) {
+// Receives a datagram into buf. Fills sender_ip_out and sender_port_out
+// when non-null. Returns the number of bytes read, Code::wouldBlock
+// when nothing has arrived, or another negative error code.
+export int32_t sockRecvFrom(int32_t fd, void* buf, int32_t count, char* sender_ip_out,
+                            int32_t ip_max_len, int32_t* sender_port_out) noexcept {
     if (fd < 0 || buf == nullptr || count <= 0) {
         return 0;
     }
@@ -265,9 +305,11 @@ int32_t cudp_recvfrom(int32_t fd, void* buf, int32_t count, char* sender_ip_out,
     return static_cast<int32_t>(n);
 }
 
-int32_t cudp_sendto(int32_t fd, const void* buf, int32_t count, const char* host, int32_t port) {
+// Sends a datagram to host and port. Returns the number of bytes sent,
+// Code::wouldBlock when socket cannot take any, or negative error code.
+export int32_t sockSendTo(int32_t fd, const void* buf, int32_t count, const char* host, int32_t port) noexcept {
     if (fd < 0 || buf == nullptr) {
-        return CUDP_ERR_GENERIC;
+        return Code::generic;
     }
     if (count == 0) {
         return 0;
@@ -275,7 +317,7 @@ int32_t cudp_sendto(int32_t fd, const void* buf, int32_t count, const char* host
 
     struct addrinfo* res = nullptr;
     int rc = lookup(host, port, false, &res);
-    if (rc != CUDP_OK) {
+    if (rc != Code::ok) {
         return rc;
     }
 
@@ -295,7 +337,8 @@ int32_t cudp_sendto(int32_t fd, const void* buf, int32_t count, const char* host
     return static_cast<int32_t>(n);
 }
 
-int32_t cudp_recv(int32_t fd, void* buf, int32_t count) {
+// Reads a datagram on a connected UDP socket.
+export int32_t sockRecv(int32_t fd, void* buf, int32_t count) noexcept {
     if (fd < 0 || buf == nullptr || count <= 0) {
         return 0;
     }
@@ -310,9 +353,10 @@ int32_t cudp_recv(int32_t fd, void* buf, int32_t count) {
     return static_cast<int32_t>(n);
 }
 
-int32_t cudp_send(int32_t fd, const void* buf, int32_t count) {
+// Sends a datagram on a connected UDP socket.
+export int32_t sockSend(int32_t fd, const void* buf, int32_t count) noexcept {
     if (fd < 0 || buf == nullptr) {
-        return CUDP_ERR_GENERIC;
+        return Code::generic;
     }
     if (count == 0) {
         return 0;
@@ -328,25 +372,27 @@ int32_t cudp_send(int32_t fd, const void* buf, int32_t count) {
     return static_cast<int32_t>(n);
 }
 
-int32_t cudp_close(int32_t fd) {
+// Closes a socket descriptor.
+export int32_t sockClose(int32_t fd) noexcept {
     if (fd < 0) {
-        return CUDP_OK;
+        return Code::ok;
     }
-    return CLOSE_SOCKET(fd) == 0 ? CUDP_OK : map_error(GET_LAST_ERROR());
+    return CLOSE_SOCKET(fd) == 0 ? Code::ok : map_error(GET_LAST_ERROR());
 }
 
-int32_t cudp_set_broadcast(int32_t fd, int32_t enabled) {
+// Socket options:
+export int32_t sockSetBroadcast(int32_t fd, int32_t enabled) noexcept {
     if (fd < 0) {
-        return CUDP_ERR_GENERIC;
+        return Code::generic;
     }
     int opt = enabled ? 1 : 0;
     int rc = setsockopt(fd, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&opt), sizeof(opt));
-    return rc == 0 ? CUDP_OK : map_error(GET_LAST_ERROR());
+    return rc == 0 ? Code::ok : map_error(GET_LAST_ERROR());
 }
 
-int32_t cudp_set_buffer_sizes(int32_t fd, int32_t rcvbuf, int32_t sndbuf) {
+export int32_t sockSetBufferSizes(int32_t fd, int32_t rcvbuf, int32_t sndbuf) noexcept {
     if (fd < 0) {
-        return CUDP_ERR_GENERIC;
+        return Code::generic;
     }
     if (rcvbuf > 0) {
         int r = setsockopt(fd, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<const char*>(&rcvbuf), sizeof(rcvbuf));
@@ -360,60 +406,61 @@ int32_t cudp_set_buffer_sizes(int32_t fd, int32_t rcvbuf, int32_t sndbuf) {
             return map_error(GET_LAST_ERROR());
         }
     }
-    return CUDP_OK;
+    return Code::ok;
 }
 
-int32_t cudp_set_ttl(int32_t fd, int32_t ttl) {
+export int32_t sockSetTtl(int32_t fd, int32_t ttl) noexcept {
     if (fd < 0) {
-        return CUDP_ERR_GENERIC;
+        return Code::generic;
     }
     int rc = setsockopt(fd, IPPROTO_IP, IP_TTL, reinterpret_cast<const char*>(&ttl), sizeof(ttl));
-    return rc == 0 ? CUDP_OK : map_error(GET_LAST_ERROR());
+    return rc == 0 ? Code::ok : map_error(GET_LAST_ERROR());
 }
 
-int32_t cudp_join_multicast(int32_t fd, const char* group, const char* iface) {
+// Multicast options:
+export int32_t sockJoinMulticast(int32_t fd, const char* group, const char* iface) noexcept {
     if (fd < 0 || group == nullptr) {
-        return CUDP_ERR_GENERIC;
+        return Code::generic;
     }
     struct ip_mreq mreq;
     memset(&mreq, 0, sizeof(mreq));
     if (inet_pton(AF_INET, group, &mreq.imr_multiaddr) <= 0) {
-        return CUDP_ERR_INVALID_ADDR;
+        return Code::invalidAddress;
     }
     if (iface && iface[0] != '\0') {
         if (inet_pton(AF_INET, iface, &mreq.imr_interface) <= 0) {
-            return CUDP_ERR_INVALID_ADDR;
+            return Code::invalidAddress;
         }
     } else {
         mreq.imr_interface.s_addr = htonl(INADDR_ANY);
     }
     int rc = setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, reinterpret_cast<const char*>(&mreq), sizeof(mreq));
-    return rc == 0 ? CUDP_OK : map_error(GET_LAST_ERROR());
+    return rc == 0 ? Code::ok : map_error(GET_LAST_ERROR());
 }
 
-int32_t cudp_leave_multicast(int32_t fd, const char* group, const char* iface) {
+export int32_t sockLeaveMulticast(int32_t fd, const char* group, const char* iface) noexcept {
     if (fd < 0 || group == nullptr) {
-        return CUDP_ERR_GENERIC;
+        return Code::generic;
     }
     struct ip_mreq mreq;
     memset(&mreq, 0, sizeof(mreq));
     if (inet_pton(AF_INET, group, &mreq.imr_multiaddr) <= 0) {
-        return CUDP_ERR_INVALID_ADDR;
+        return Code::invalidAddress;
     }
     if (iface && iface[0] != '\0') {
         if (inet_pton(AF_INET, iface, &mreq.imr_interface) <= 0) {
-            return CUDP_ERR_INVALID_ADDR;
+            return Code::invalidAddress;
         }
     } else {
         mreq.imr_interface.s_addr = htonl(INADDR_ANY);
     }
     int rc = setsockopt(fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, reinterpret_cast<const char*>(&mreq), sizeof(mreq));
-    return rc == 0 ? CUDP_OK : map_error(GET_LAST_ERROR());
+    return rc == 0 ? Code::ok : map_error(GET_LAST_ERROR());
 }
 
-int32_t cudp_set_multicast_loopback(int32_t fd, int32_t enabled) {
+export int32_t sockSetMulticastLoopback(int32_t fd, int32_t enabled) noexcept {
     if (fd < 0) {
-        return CUDP_ERR_GENERIC;
+        return Code::generic;
     }
 #if defined(_WIN32)
     BOOL opt = enabled ? TRUE : FALSE;
@@ -422,12 +469,12 @@ int32_t cudp_set_multicast_loopback(int32_t fd, int32_t enabled) {
     u_char opt = enabled ? 1 : 0;
     int rc = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, reinterpret_cast<const char*>(&opt), sizeof(opt));
 #endif
-    return rc == 0 ? CUDP_OK : map_error(GET_LAST_ERROR());
+    return rc == 0 ? Code::ok : map_error(GET_LAST_ERROR());
 }
 
-int32_t cudp_set_multicast_ttl(int32_t fd, int32_t ttl) {
+export int32_t sockSetMulticastTtl(int32_t fd, int32_t ttl) noexcept {
     if (fd < 0) {
-        return CUDP_ERR_GENERIC;
+        return Code::generic;
     }
 #if defined(_WIN32)
     int opt = ttl;
@@ -436,12 +483,13 @@ int32_t cudp_set_multicast_ttl(int32_t fd, int32_t ttl) {
     u_char opt = static_cast<u_char>(ttl);
     int rc = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_TTL, reinterpret_cast<const char*>(&opt), sizeof(opt));
 #endif
-    return rc == 0 ? CUDP_OK : map_error(GET_LAST_ERROR());
+    return rc == 0 ? Code::ok : map_error(GET_LAST_ERROR());
 }
 
-int32_t cudp_get_sockname(int32_t fd, char* ip_out, int32_t ip_max_len, int32_t* port_out) {
+// Query socket address and peer address:
+export int32_t sockGetSockname(int32_t fd, char* ip_out, int32_t ip_max_len, int32_t* port_out) noexcept {
     if (fd < 0) {
-        return CUDP_ERR_GENERIC;
+        return Code::generic;
     }
     struct sockaddr_storage addr;
     socklen_t len = sizeof(addr);
@@ -449,12 +497,12 @@ int32_t cudp_get_sockname(int32_t fd, char* ip_out, int32_t ip_max_len, int32_t*
         return map_error(GET_LAST_ERROR());
     }
     format_address(&addr, ip_out, ip_max_len, port_out);
-    return CUDP_OK;
+    return Code::ok;
 }
 
-int32_t cudp_get_peername(int32_t fd, char* ip_out, int32_t ip_max_len, int32_t* port_out) {
+export int32_t sockGetPeername(int32_t fd, char* ip_out, int32_t ip_max_len, int32_t* port_out) noexcept {
     if (fd < 0) {
-        return CUDP_ERR_GENERIC;
+        return Code::generic;
     }
     struct sockaddr_storage addr;
     socklen_t len = sizeof(addr);
@@ -462,16 +510,17 @@ int32_t cudp_get_peername(int32_t fd, char* ip_out, int32_t ip_max_len, int32_t*
         return map_error(GET_LAST_ERROR());
     }
     format_address(&addr, ip_out, ip_max_len, port_out);
-    return CUDP_OK;
+    return Code::ok;
 }
 
-int32_t cudp_resolve(const char* host, int32_t port, char* ips_out, int32_t ip_max_len,
-                     int32_t max_results, int32_t* families_out) {
+// Resolves host to datagram addresses for port:
+export int32_t sockResolve(const char* host, int32_t port, char* ips_out, int32_t ip_max_len,
+                           int32_t max_results, int32_t* families_out) noexcept {
     init_network();
 
     struct addrinfo* res = nullptr;
     int rc = lookup(host, port, false, &res);
-    if (rc != CUDP_OK) {
+    if (rc != Code::ok) {
         return rc;
     }
 
@@ -494,15 +543,17 @@ int32_t cudp_resolve(const char* host, int32_t port, char* ips_out, int32_t ip_m
     return written;
 }
 
-int32_t cudp_last_error(void) {
+// Last error reported by OS:
+export int32_t sockLastError() noexcept {
     return GET_LAST_ERROR();
 }
 
-int32_t cudp_get_interfaces(char* names_out, int32_t name_max_len,
-                           char* ips_out, int32_t ip_max_len,
-                           int32_t max_results,
-                           int32_t* families_out,
-                           int32_t* flags_out) {
+// Enumerates local network interfaces:
+export int32_t sockGetInterfaces(char* names_out, int32_t name_max_len,
+                                 char* ips_out, int32_t ip_max_len,
+                                 int32_t max_results,
+                                 int32_t* families_out,
+                                 int32_t* flags_out) noexcept {
 #if !defined(_WIN32)
     init_network();
     struct ifaddrs* ifap = nullptr;
@@ -546,4 +597,3 @@ int32_t cudp_get_interfaces(char* names_out, int32_t name_max_len,
 #endif
 }
 
-} // extern "C"

@@ -74,7 +74,7 @@ public func Connect(_ address: string, timeoutMs: int32 = 5000) async throws -> 
 /// way every other operation here does.
 public func Connect(host: string, port: uint16, timeoutMs: int32 = 5000) async throws -> TcpStream {
     let target = "\(host):\(port)"
-    let fd = host.withCString { h in ctcp_connect_begin(h, int32(port)) }
+    let fd = host.withCString { h in sockConnectBegin(h, int32(port)) }
     if fd < 0 {
         throw errorFor(fd, target)
     }
@@ -82,12 +82,12 @@ public func Connect(host: string, port: uint16, timeoutMs: int32 = 5000) async t
     // than made. It is finished when the socket becomes writable, and
     // whether it succeeded is a question for the socket after that.
     if !(await waitReady(fd, Ready.writable, timeoutMs)) {
-        _ = ctcp_close(fd)
+        _ = sockClose(fd)
         throw TcpError.timedOut("connecting to \(target)")
     }
-    let rc = ctcp_connect_check(fd)
+    let rc = sockConnectCheck(fd)
     if rc != Code.ok {
-        _ = ctcp_close(fd)
+        _ = sockClose(fd)
         throw errorFor(rc, target)
     }
     return TcpStream(
@@ -178,7 +178,7 @@ func (s: borrowing TcpStream) readInto(_ buffer: inout [uint8], at offset: int) 
     let fd = s.SocketFd
     while true {
         let n = buffer.withUnsafeMutableBytes { raw in
-            ctcp_read(fd, raw.baseAddress! + offset, chunk(raw.count - offset))
+            sockRead(fd, raw.baseAddress! + offset, chunk(raw.count - offset))
         }
         if n >= 0 {
             return int(n)
@@ -206,7 +206,7 @@ public func (s: borrowing TcpStream) Write(_ data: borrowing [uint8]) async thro
         // is a box on the heap (vsc does not promote it to a value yet).
         let off = written
         let n = data.withUnsafeBytes { raw in
-            ctcp_write(fd, raw.baseAddress! + off, chunk(raw.count - off))
+            sockWrite(fd, raw.baseAddress! + off, chunk(raw.count - off))
         }
         if n >= 0 {
             written += int(n)
@@ -230,7 +230,7 @@ public func (s: borrowing TcpStream) Write(_ data: borrowing ArraySlice<uint8>) 
         // is a box on the heap (vsc does not promote it to a value yet).
         let off = written
         let n = data.withUnsafeBytes { raw in
-            ctcp_write(fd, raw.baseAddress! + off, chunk(raw.count - off))
+            sockWrite(fd, raw.baseAddress! + off, chunk(raw.count - off))
         }
         if n >= 0 {
             written += int(n)
@@ -286,7 +286,7 @@ public func (s: borrowing TcpStream) Shutdown(_ how: ShutdownMode) throws {
     case .write: mode = 1
     case .both: mode = 2
     }
-    let rc = ctcp_shutdown(s.SocketFd, mode)
+    let rc = sockShutdown(s.SocketFd, mode)
     if rc < 0 {
         throw errorFor(rc, "shutting down \(s.PeerAddress.ToString())")
     }
@@ -295,7 +295,7 @@ public func (s: borrowing TcpStream) Shutdown(_ how: ShutdownMode) throws {
 /// Closes the socket. The stream is consumed, so nothing can read from it
 /// afterwards.
 public func (s: consuming TcpStream) Close() {
-    _ = ctcp_close(s.SocketFd)
+    _ = sockClose(s.SocketFd)
 }
 
 // MARK: - Socket options
@@ -304,7 +304,7 @@ public func (s: consuming TcpStream) Close() {
 /// collect them (TCP_NODELAY). Worth it for request/response traffic,
 /// where waiting to fill a packet is latency for nothing.
 public func (s: borrowing TcpStream) SetNoDelay(_ enabled: bool) throws {
-    let rc = ctcp_set_nodelay(s.SocketFd, enabled ? 1 : 0)
+    let rc = sockSetNodelay(s.SocketFd, enabled ? 1 : 0)
     if rc < 0 {
         throw errorFor(rc, "TCP_NODELAY on \(s.PeerAddress.ToString())")
     }
@@ -313,7 +313,7 @@ public func (s: borrowing TcpStream) SetNoDelay(_ enabled: bool) throws {
 /// Sends keepalive probes on an idle connection, so that a peer that went
 /// away without closing is noticed.
 public func (s: borrowing TcpStream) SetKeepAlive(_ enabled: bool, idleSecs: int32 = 60) throws {
-    let rc = ctcp_set_keepalive(s.SocketFd, enabled ? 1 : 0, idleSecs)
+    let rc = sockSetKeepalive(s.SocketFd, enabled ? 1 : 0, idleSecs)
     if rc < 0 {
         throw errorFor(rc, "SO_KEEPALIVE on \(s.PeerAddress.ToString())")
     }
@@ -322,7 +322,7 @@ public func (s: borrowing TcpStream) SetKeepAlive(_ enabled: bool, idleSecs: int
 /// Sets the kernel's receive and send buffer sizes in bytes. 0 leaves one
 /// of them as it is.
 public func (s: borrowing TcpStream) SetBufferSizes(receive: int32, send: int32) throws {
-    let rc = ctcp_set_buffer_sizes(s.SocketFd, receive, send)
+    let rc = sockSetBufferSizes(s.SocketFd, receive, send)
     if rc < 0 {
         throw errorFor(rc, "SO_RCVBUF/SO_SNDBUF on \(s.PeerAddress.ToString())")
     }

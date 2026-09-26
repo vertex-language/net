@@ -70,7 +70,7 @@ public enum SocketAddress {
         return .v4(ip: "\(a).\(b).\(c).\(d)", port: port)
     }
 
-    // fromC reads an address ctcp formatted. It writes a v6 address the
+    // fromC reads an address sock.cpp formatted. It writes a v6 address the
     // only way one can be written, so a colon in it says which it is.
     static func fromC(ip: string, port: int32) -> SocketAddress {
         let p = uint16(truncatingIfNeeded: port)
@@ -122,7 +122,7 @@ public func Resolve(host: string, port: uint16) throws -> [SocketAddress] {
     let n = host.withCString { h -> int32 in
         text.withUnsafeMutableBufferPointer { tp -> int32 in
             families.withUnsafeMutableBufferPointer { fp -> int32 in
-                ctcp_resolve(h, int32(port), tp.baseAddress, int32(slot),
+                sockResolve(h, int32(port), tp.baseAddress, int32(slot),
                              int32(capacity), fp.baseAddress)
             }
         }

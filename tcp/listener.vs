@@ -57,7 +57,7 @@ public func Listen(host: string = "0.0.0.0", port: uint16,
         flags |= ListenFlag.reusePort
     }
     let fd = host.withCString { h in
-        ctcp_listen(h, int32(port), options.Backlog, flags)
+        sockListen(h, int32(port), options.Backlog, flags)
     }
     if fd < 0 {
         throw errorFor(fd, "\(host):\(port)")
@@ -80,7 +80,7 @@ public func Listen(address: SocketAddress,
 public func (l: borrowing TcpListener) Accept() async throws -> TcpStream {
     let fd = l.SocketFd
     while true {
-        let client = ctcp_accept(fd, nil, 0, nil)
+        let client = sockAccept(fd, nil, 0, nil)
         if client >= 0 {
             return TcpStream(SocketFd: client)
         }
@@ -120,7 +120,7 @@ public func (l: borrowing TcpListener) Serve(
     let port = l.LocalAddress.Port()
     let host = l.LocalAddress.Host()
 
-    if l.Options.ReusePort && port > 0 && ctcp_reuseport_balances() == 1 {
+    if l.Options.ReusePort && port > 0 && sockReuseportBalances() == 1 {
         let workers = poolSize()
         var w = 0
         while w < workers {
@@ -163,5 +163,5 @@ public func (l: inout TcpListener) SetAcceptTimeout(ms: int32) {
 
 /// Stops listening. Connections already accepted are not affected.
 public func (l: consuming TcpListener) Close() {
-    _ = ctcp_close(l.SocketFd)
+    _ = sockClose(l.SocketFd)
 }

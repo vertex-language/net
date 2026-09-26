@@ -45,7 +45,7 @@ public enum TcpError: Error {
     }
 }
 
-// errorFor is the error a negative ctcp result stands for. context names
+// errorFor is the error a negative sock.cpp result stands for. context names
 // what was being attempted -- an address, or "read from 10.0.0.2:443" --
 // and becomes the message.
 //
@@ -61,6 +61,6 @@ func errorFor(_ code: int32, _ context: string) -> TcpError {
     case Code.brokenPipe: return .brokenPipe(context)
     case Code.unreachable: return .networkUnreachable(context)
     case Code.invalidAddress: return .invalidAddress(context)
-    default: return .systemError(code: ctcp_last_error(), context: context)
+    default: return .systemError(code: sockLastError(), context: context)
     }
 }

@@ -41,7 +41,7 @@ public func GetNetworkInterfaces() throws -> [NetworkInterface] {
         ips.withUnsafeMutableBufferPointer { ip in
             families.withUnsafeMutableBufferPointer { fp in
                 flags.withUnsafeMutableBufferPointer { flp in
-                    cudp_get_interfaces(np.baseAddress, int32(nameLen),
+                    sockGetInterfaces(np.baseAddress, int32(nameLen),
                                         ip.baseAddress, int32(ipLen),
                                         int32(maxCount),
                                         fp.baseAddress,

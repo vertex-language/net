@@ -284,7 +284,11 @@ func main() async -> int32 {
 
 ## Testing & Verification
 
-Run the test suites directly with `vsc run <target>`:
+Each package is a folder, and every program is `cmd/<name>`, run with
+`vsc run <name>`. `net/tcp` and `net/udp` each have one C++ module for
+their sockets (`tcp/sock.cpp` is `export module net.tcp;`, and
+`udp/sock.cpp` is `net.udp`), which only the package's own `.vs` files
+see.
 
 ```bash
 # Web & Transport Protocols

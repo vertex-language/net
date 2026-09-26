@@ -61,7 +61,7 @@ public enum SocketAddress {
         return .v4(ip: "\(a).\(b).\(c).\(d)", port: port)
     }
 
-    // fromC reads an address formatted by cudp.
+    // fromC reads an address formatted by sock.cpp.
     static func fromC(ip: string, port: int32) -> SocketAddress {
         let p = uint16(truncatingIfNeeded: port)
         for b in ip.utf8 {
@@ -106,7 +106,7 @@ public func Resolve(host: string, port: uint16) throws -> [SocketAddress] {
     let n = host.withCString { h -> int32 in
         text.withUnsafeMutableBufferPointer { tp -> int32 in
             families.withUnsafeMutableBufferPointer { fp -> int32 in
-                cudp_resolve(h, int32(port), tp.baseAddress, int32(slot),
+                sockResolve(h, int32(port), tp.baseAddress, int32(slot),
                              int32(capacity), fp.baseAddress)
             }
         }
