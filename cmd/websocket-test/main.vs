@@ -1,8 +1,10 @@
 package main
 
-import "net/tcp"
-import "net/http"
-import "net/websocket"
+import (
+    "net/http"
+    "net/tcp"
+    "net/websocket"
+)
 
 var failures = 0
 

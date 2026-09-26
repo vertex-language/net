@@ -1,7 +1,9 @@
 package turn
 
-import "net/udp"
-import "net/stun"
+import (
+    "net/stun"
+    "net/udp"
+)
 
 /// ServerSession tracks an active allocation on the mock/local TURN server.
 public struct ServerSession {

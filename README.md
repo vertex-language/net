@@ -33,10 +33,18 @@ Networking library providing asynchronous TCP and UDP socket primitives, multi-p
 
 ## Quick Start
 
-Run any entry point with:
+Run network tests and tools in `cmd/` directly with `vsc run`:
 
 ```bash
-vsc run main.vs
+# Web & transport protocols
+vsc run http-test
+vsc run websocket-test
+vsc run quic-test
+
+# Real-time communication and sockets
+vsc run webrtc-test
+vsc run datachannel-test
+vsc run loopback
 ```
 
 ### 1. Unified HTTP & HTTPS Client (HTTP/1.1, HTTP/2, HTTP/3)

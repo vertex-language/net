@@ -1,8 +1,10 @@
 package ice
 
-import "net/udp"
-import "net/stun"
-import "crypto/rand"
+import (
+    "crypto/rand"
+    "net/stun"
+    "net/udp"
+)
 
 // ICE Roles (RFC 8445 Section 6.1.1)
 public struct IceRole {

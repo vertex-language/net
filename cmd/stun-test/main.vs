@@ -1,7 +1,9 @@
 package main
 
-import "net/udp"
-import "net/stun"
+import (
+    "net/stun"
+    "net/udp"
+)
 
 var failures = 0
 

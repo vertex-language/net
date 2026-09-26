@@ -1,8 +1,10 @@
 package turn
 
-import "net/udp"
-import "net/stun"
-import "crypto/md5"
+import (
+    "crypto/md5"
+    "net/stun"
+    "net/udp"
+)
 
 /// Computes the TURN Long-Term Credential Key (RFC 5389 Section 15.4 / RFC 8656 Section 9.1.1):
 /// key = MD5(username ":" realm ":" password)

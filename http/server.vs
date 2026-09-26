@@ -1,9 +1,11 @@
 package http
 
-import "net/tcp"
-import "net/udp"
-import "net/quic"
-import "crypto/tls"
+import (
+    "crypto/tls"
+    "net/quic"
+    "net/tcp"
+    "net/udp"
+)
 
 /// ResponseWriter provides an interface for constructing and sending an HTTP response.
 public struct ResponseWriter {

@@ -1,8 +1,10 @@
 package websocket
 
-import "net/tcp"
-import "net/http"
-import "crypto/tls"
+import (
+    "crypto/tls"
+    "net/http"
+    "net/tcp"
+)
 
 /// Parsed WebSocket URL representation.
 public struct WebSocketURL {

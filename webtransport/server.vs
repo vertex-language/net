@@ -1,7 +1,9 @@
 package webtransport
 
-import "net/quic"
-import "net/http"
+import (
+    "net/http"
+    "net/quic"
+)
 
 /// WebTransportListener listens for incoming WebTransport sessions over QUIC.
 public struct WebTransportListener {

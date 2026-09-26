@@ -1,10 +1,12 @@
 package webrtc
 
-import "net/udp"
-import "net/ice"
-import "net/sctp"
-import "net/datachannel"
-import "crypto/dtls"
+import (
+    "crypto/dtls"
+    "net/datachannel"
+    "net/ice"
+    "net/sctp"
+    "net/udp"
+)
 
 /// RTCPeerConnection represents a WebRTC peer connection coordinating ICE, DTLS, SCTP, and DataChannels (RFC 9429 / W3C).
 public struct RTCPeerConnection {

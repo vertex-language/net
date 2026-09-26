@@ -1,7 +1,9 @@
 package webtransport
 
-import "net/quic"
-import "net/http"
+import (
+    "net/http"
+    "net/quic"
+)
 
 /// WebTransportURL represents a parsed WebTransport endpoint.
 public struct WebTransportURL {

@@ -1,8 +1,10 @@
 package main
 
-import "net/tcp"
-import "net/http"
-import "net/quic"
+import (
+    "net/http"
+    "net/quic"
+    "net/tcp"
+)
 
 var failures = 0
 

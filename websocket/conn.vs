@@ -1,7 +1,9 @@
 package websocket
 
-import "net/tcp"
-import "crypto/tls"
+import (
+    "crypto/tls"
+    "net/tcp"
+)
 
 /// WebSocket represents an established WebSocket connection over plain TCP or TLS 1.3.
 public struct WebSocket {

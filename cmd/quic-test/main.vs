@@ -1,8 +1,10 @@
 package main
 
-import "net/udp"
-import "net/quic"
-import "crypto/hkdf"
+import (
+    "crypto/hkdf"
+    "net/quic"
+    "net/udp"
+)
 
 var failures = 0
 

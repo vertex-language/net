@@ -1,8 +1,10 @@
 package http
 
-import "net/tcp"
-import "crypto/tls"
-import "io"
+import (
+    "crypto/tls"
+    "io"
+    "net/tcp"
+)
 
 /// ResponseStream is a response whose body is read as it arrives, for a
 /// body too big to hold: a model's weights, a dataset shard. Response

@@ -1,10 +1,12 @@
 package main
 
-import "net/udp"
-import "net/ice"
-import "net/sctp"
-import "net/datachannel"
-import "net/webrtc"
+import (
+    "net/datachannel"
+    "net/ice"
+    "net/sctp"
+    "net/udp"
+    "net/webrtc"
+)
 
 var failures = 0
 

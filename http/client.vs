@@ -1,9 +1,11 @@
 package http
 
-import "net/tcp"
-import "net/udp"
-import "net/quic"
-import "crypto/tls"
+import (
+    "crypto/tls"
+    "net/quic"
+    "net/tcp"
+    "net/udp"
+)
 
 /// URL represents a parsed HTTP or HTTPS URL.
 public struct URL {
@@ -347,7 +349,7 @@ public struct Client {
 
     /// Executes HTTP/3 over QUIC.
     public func executeH3(req: Request, host: string, port: uint16) async throws -> Response {
-        var addr: SocketAddress = SocketAddress.v4(ip: host, port: port)
+        var addr: udp.SocketAddress = udp.SocketAddress.v4(ip: host, port: port)
         do {
             let resolved = try udp.Resolve(host: host, port: port)
             if !resolved.isEmpty {

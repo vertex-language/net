@@ -1,8 +1,10 @@
 package websocket
 
-import "net/http"
-import "crypto/sha1"
-import "crypto/rand"
+import (
+    "crypto/rand"
+    "crypto/sha1"
+    "net/http"
+)
 
 public func WebSocketGuid() -> string {
     return "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"

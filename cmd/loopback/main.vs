@@ -1,8 +1,10 @@
 // Unified loopback test suite for 'net': verifies TCP and UDP over loopback sockets.
 package main
 
-import "net/tcp"
-import "net/udp"
+import (
+    "net/tcp"
+    "net/udp"
+)
 
 var failures = 0
 

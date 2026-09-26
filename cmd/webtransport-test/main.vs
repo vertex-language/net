@@ -1,8 +1,10 @@
 package main
 
-import "net/webtransport"
-import "net/http"
-import "net/quic"
+import (
+    "net/http"
+    "net/quic"
+    "net/webtransport"
+)
 
 var failures = 0
 

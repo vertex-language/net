@@ -1,7 +1,9 @@
 package main
 
-import "net/datachannel"
-import "net/sctp"
+import (
+    "net/datachannel"
+    "net/sctp"
+)
 
 var failures = 0
 

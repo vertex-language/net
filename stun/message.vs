@@ -1,9 +1,11 @@
 package stun
 
-import "crypto/rand"
-import "crypto/crc32"
-import "crypto/hmac"
-import "crypto/sha1"
+import (
+    "crypto/crc32"
+    "crypto/hmac"
+    "crypto/rand"
+    "crypto/sha1"
+)
 
 /// Generates a cryptographically random 12-byte (96-bit) STUN transaction ID.
 public func NewTransactionId() -> [uint8] {

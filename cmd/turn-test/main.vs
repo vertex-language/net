@@ -1,9 +1,11 @@
 package main
 
-import "net/udp"
-import "net/stun"
-import "net/turn"
-import "crypto/md5"
+import (
+    "crypto/md5"
+    "net/stun"
+    "net/turn"
+    "net/udp"
+)
 
 var failures = 0
 

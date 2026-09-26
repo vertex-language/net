@@ -1,7 +1,9 @@
 package ice
 
-import "net/udp"
-import "net/stun"
+import (
+    "net/stun"
+    "net/udp"
+)
 
 /// CandidateGatherer manages local host and server-reflexive ICE candidate discovery.
 public struct CandidateGatherer {

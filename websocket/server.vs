@@ -1,8 +1,10 @@
 package websocket
 
-import "net/tcp"
-import "net/http"
-import "crypto/tls"
+import (
+    "crypto/tls"
+    "net/http"
+    "net/tcp"
+)
 
 /// Upgrades an established HTTP/1.1 TCP stream to a WebSocket server connection.
 public func Upgrade(stream: tcp.TcpStream,

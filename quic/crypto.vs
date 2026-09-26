@@ -1,8 +1,10 @@
 package quic
 
-import "crypto/hkdf"
-import "crypto/chacha20"
-import "crypto/chacha20poly1305"
+import (
+    "crypto/chacha20"
+    "crypto/chacha20poly1305"
+    "crypto/hkdf"
+)
 
 /// Authoritative RFC 9001 Section 5.2 Initial Salt for QUIC Version 1.
 public struct QuicSalt {
