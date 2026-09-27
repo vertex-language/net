@@ -3,120 +3,38 @@ package webtransport
 import (
     "net/http"
     "net/quic"
+    "net/url"
 )
 
-/// WebTransportURL represents a parsed WebTransport endpoint.
-public struct WebTransportURL {
-    public var Scheme: string
-    public var Host: string
-    public var Port: uint16
-    public var Path: string
-
-    public init(scheme: string, host: string, port: uint16, path: string) {
-        self.Scheme = scheme
-        self.Host = host
-        self.Port = port
-        self.Path = path
+/// A WebTransport endpoint's URL, parsed: https://, with a host.
+public func ParseEndpoint(_ address: string) throws -> url.URL {
+    let u: url.URL
+    do {
+        u = try url.Parse(address)
+    } catch {
+        throw WebTransportError.invalidUrl("not a URL: '\(address)'")
     }
-
-    /// Parses a URL string into WebTransportURL ("https://host:port/path").
-    public static func Parse(_ url: string) throws -> WebTransportURL {
-        let httpsPrefix = "https://"
-        if !url.hasPrefix(httpsPrefix) {
-            throw WebTransportError.invalidUrl("WebTransport URL must start with 'https://': '\(url)'")
-        }
-
-        var urlBytes: [uint8] = []
-        for b in url.utf8 { urlBytes.append(b) }
-
-        let offset = 8 // length of "https://"
-        var pathStart = -1
-        var i = offset
-        while i < urlBytes.count {
-            if urlBytes[i] == 47 { // '/'
-                pathStart = i
-                break
-            }
-            i += 1
-        }
-
-        var hostPortBytes: [uint8] = []
-        let hpEnd = (pathStart < 0) ? urlBytes.count : pathStart
-        var hi = offset
-        while hi < hpEnd {
-            hostPortBytes.append(urlBytes[hi])
-            hi += 1
-        }
-
-        var colon = -1
-        var ci = 0
-        while ci < hostPortBytes.count {
-            if hostPortBytes[ci] == 58 { // ':'
-                colon = ci
-                break
-            }
-            ci += 1
-        }
-
-        var hostBytes: [uint8] = []
-        var hostEnd = (colon >= 0) ? colon : hostPortBytes.count
-        var k = 0
-        while k < hostEnd {
-            hostBytes.append(hostPortBytes[k])
-            k += 1
-        }
-        let host = string(decoding: hostBytes, as: UTF8.self)
-
-        var port: uint16 = 443
-        if colon >= 0 {
-            var pVal: uint16 = 0
-            k = colon + 1
-            while k < hostPortBytes.count {
-                let b = hostPortBytes[k]
-                if b >= 48 && b <= 57 {
-                    pVal = pVal * 10 + uint16(b - 48)
-                }
-                k += 1
-            }
-            if pVal > 0 {
-                port = pVal
-            }
-        }
-
-        var path = "/"
-        if pathStart >= 0 {
-            var pathBytes: [uint8] = []
-            var pi = pathStart
-            while pi < urlBytes.count {
-                pathBytes.append(urlBytes[pi])
-                pi += 1
-            }
-            path = string(decoding: pathBytes, as: UTF8.self)
-        }
-
-        if host.isEmpty {
-            throw WebTransportError.invalidUrl("Host cannot be empty in URL: '\(url)'")
-        }
-
-        return WebTransportURL(scheme: "https", host: host, port: port, path: path)
+    if u.Scheme != "https" {
+        throw WebTransportError.invalidUrl("WebTransport URL must start with 'https://': '\(address)'")
     }
+    return u
 }
 
 /// Connects to a WebTransport endpoint over HTTP/3 via QUIC (matching webtransport_package.md).
-public func Connect(_ url: string) async throws -> WebTransportSession {
+public func Connect(_ address: string) async throws -> WebTransportSession {
     let cfg = WebTransportConfig()
-    return try await Connect(url, config: cfg)
+    return try await Connect(address, config: cfg)
 }
 
 /// Connects to a WebTransport endpoint with custom configuration.
-public func Connect(_ url: string, config: WebTransportConfig) async throws -> WebTransportSession {
-    let u = try WebTransportURL.Parse(url)
+public func Connect(_ address: string, config: WebTransportConfig) async throws -> WebTransportSession {
+    let u = try ParseEndpoint(address)
 
     var qConfig = quic.QuicConfig()
     qConfig.MaxIdleTimeoutMs = uint64(config.TimeoutMs)
     qConfig.EnableDatagrams = config.EnableDatagrams
 
-    var conn = try await quic.Connect(host: u.Host, port: u.Port, config: qConfig)
+    var conn = try await quic.Connect(host: u.Host, port: u.EffectivePort, config: qConfig)
 
     // 1. Initialize HTTP/3 control stream and exchange settings
     var ctrl = try await conn.OpenUniStream()
@@ -135,14 +53,14 @@ public func Connect(_ url: string, config: WebTransportConfig) async throws -> W
 
     // 2. Open bidirectional stream for extended CONNECT request
     var connectStream = try await conn.OpenStream()
-    let authority = (u.Port == 443) ? u.Host : "\(u.Host):\(u.Port)"
+    let authority = u.EffectivePort == 443 ? (u.Host.contains(":") ? "[" + u.Host + "]" : u.Host) : u.HostPort
 
     let headerList: [http.HeaderEntry] = [
         http.HeaderEntry(key: ":method", value: "CONNECT"),
         http.HeaderEntry(key: ":protocol", value: "webtransport"),
         http.HeaderEntry(key: ":scheme", value: "https"),
         http.HeaderEntry(key: ":authority", value: authority),
-        http.HeaderEntry(key: ":path", value: u.Path.isEmpty ? "/" : u.Path),
+        http.HeaderEntry(key: ":path", value: u.RequestURI),
         http.HeaderEntry(key: "sec-webtransport-http3-draft", value: "draft02")
     ]
 

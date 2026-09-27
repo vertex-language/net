@@ -4,6 +4,7 @@ import (
     "net/http"
     "net/quic"
     "net/tcp"
+    "net/url"
 )
 
 var failures = 0
@@ -43,20 +44,20 @@ func stringContains(_ s: string, _ sub: string) -> bool {
 
 func testURL() {
     do {
-        let u1 = try http.URL.Parse("http://127.0.0.1:8080/api/v1/users")
-        check(u1.Scheme == "http" && u1.Host == "127.0.0.1" && u1.Port == 8080 && u1.Path == "/api/v1/users", "URL.Parse with port and path")
+        let u1 = try url.Parse("http://127.0.0.1:8080/api/v1/users")
+        check(u1.Scheme == "http" && u1.Host == "127.0.0.1" && u1.EffectivePort == 8080 && u1.Path == "/api/v1/users", "URL.Parse with port and path")
 
-        let u2 = try http.URL.Parse("http://example.com")
-        check(u2.Scheme == "http" && u2.Host == "example.com" && u2.Port == 80 && u2.Path == "/", "URL.Parse default port 80 and slash")
+        let u2 = try url.Parse("http://example.com")
+        check(u2.Scheme == "http" && u2.Host == "example.com" && u2.EffectivePort == 80 && u2.Path == "/", "URL.Parse default port 80 and slash")
 
-        let u3 = try http.URL.Parse("http://localhost:3000/")
-        check(u3.Scheme == "http" && u3.Host == "localhost" && u3.Port == 3000 && u3.Path == "/", "URL.Parse localhost:3000/")
+        let u3 = try url.Parse("http://localhost:3000/")
+        check(u3.Scheme == "http" && u3.Host == "localhost" && u3.EffectivePort == 3000 && u3.Path == "/", "URL.Parse localhost:3000/")
 
-        let u4 = try http.URL.Parse("https://cloudflare.com/cdn-cgi/trace")
-        check(u4.Scheme == "https" && u4.Host == "cloudflare.com" && u4.Port == 443 && u4.Path == "/cdn-cgi/trace", "URL.Parse https scheme and default port 443")
+        let u4 = try url.Parse("https://cloudflare.com/cdn-cgi/trace")
+        check(u4.Scheme == "https" && u4.Host == "cloudflare.com" && u4.EffectivePort == 443 && u4.Path == "/cdn-cgi/trace", "URL.Parse https scheme and default port 443")
 
-        let u5 = try http.URL.Parse("https://127.0.0.1:8443/status")
-        check(u5.Scheme == "https" && u5.Host == "127.0.0.1" && u5.Port == 8443 && u5.Path == "/status", "URL.Parse https with custom port 8443")
+        let u5 = try url.Parse("https://127.0.0.1:8443/status")
+        check(u5.Scheme == "https" && u5.Host == "127.0.0.1" && u5.EffectivePort == 8443 && u5.Path == "/status", "URL.Parse https with custom port 8443")
     } catch {
         check(false, "URL.Parse threw error")
     }
@@ -410,7 +411,7 @@ func testStream() async {
             return served
         }
         let c = http.Client()
-        let u = try http.URL.Parse("http://127.0.0.1:\(port)/x")
+        let u = try url.Parse("http://127.0.0.1:\(port)/x")
 
         var s = try await c.Open(http.Request(method: "GET", url: "/x"), url: u)
         check(s.Response.StatusCode == 200 && s.ContentLength == nil, "stream: chunked head")
@@ -445,6 +446,60 @@ func testStream() async {
     }
 }
 
+func hexBytes(_ s: string) -> [uint8] {
+    var out: [uint8] = []
+    var hi: int = -1
+    for c in s.utf8 {
+        var v = -1
+        if c >= 48 && c <= 57 { v = int(c) - 48 }
+        if c >= 97 && c <= 102 { v = int(c) - 87 }
+        if v < 0 { continue }
+        if hi < 0 { hi = v } else { out.append(uint8(hi * 16 + v)); hi = -1 }
+    }
+    return out
+}
+
+func headerText(_ hs: [http.HeaderEntry]) -> string {
+    var out = ""
+    for h in hs { out += h.Key + ": " + h.Value + "\n" }
+    return out
+}
+
+/// RFC 7541 Appendix C.6: three responses, Huffman-coded, on one
+/// connection whose dynamic table holds 256 bytes, so entries are
+/// evicted as they go.
+func testHpackHuffman() {
+    var dec = http.HpackDecoder()
+    dec.maxTableSize = 256
+    let blocks = [
+        "4882 6402 5885 aec3 771a 4b61 96d0 7abe 9410 54d4 44a8 2005 9504 0b81 66e0 82a6 2d1b ff6e 919d 29ad 1718 63c7 8f0b 97c8 e9ae 82ae 43d3",
+        "4883 640e ffc1 c0bf",
+        "88c1 6196 d07a be94 1054 d444 a820 0595 040b 8166 e084 a62d 1bff c05a 839b d9ab 77ad 94e7 821d d7f2 e6c7 b335 dfdf cd5b 3960 d5af 2708 7f36 72c1 ab27 0fb5 291f 9587 3160 65c0 03ed 4ee5 b106 3d50 07",
+    ]
+    let want = [
+        ":status: 302\ncache-control: private\ndate: Mon, 21 Oct 2013 20:13:21 GMT\nlocation: https://www.example.com\n",
+        ":status: 307\ncache-control: private\ndate: Mon, 21 Oct 2013 20:13:21 GMT\nlocation: https://www.example.com\n",
+        ":status: 200\ncache-control: private\ndate: Mon, 21 Oct 2013 20:13:22 GMT\nlocation: https://www.example.com\ncontent-encoding: gzip\nset-cookie: foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1\n",
+    ]
+    var i = 0
+    while i < blocks.count {
+        do {
+            let got = headerText(try dec.DecodeHeaders(data: hexBytes(blocks[i])))
+            check(got == want[i], "HPACK Huffman response C.6.\(i + 1)" + (got == want[i] ? "" : ": got\n\(got)"))
+        } catch {
+            check(false, "HPACK Huffman response C.6.\(i + 1) threw")
+        }
+        i += 1
+    }
+    check(dec.dynamicTable.count == 3, "the 256-byte table holds three entries after C.6.3 (\(dec.dynamicTable.count))")
+    do {
+        _ = try http.HuffmanDecode(hexBytes("ff ff"), from: 0, to: 2)
+        check(false, "HPACK Huffman refuses more than seven bits of padding")
+    } catch {
+        check(true, "HPACK Huffman refuses more than seven bits of padding")
+    }
+}
+
 func main() async -> int32 {
     print("=== net/http Test Suite ===")
     testURL()
@@ -453,6 +508,7 @@ func main() async -> int32 {
     testHttpTypes()
     testAltSvc()
     testHpack()
+    testHpackHuffman()
     testH2Framing()
     testQpackAndH3Framing()
     await testRoundTrip()

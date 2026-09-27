@@ -4,6 +4,7 @@ import (
     "crypto/tls"
     "io"
     "net/tcp"
+    "net/url"
 )
 
 /// ResponseStream is a response whose body is read as it arrives, for a
@@ -290,14 +291,13 @@ extension Client {
     /// caller closes. It speaks HTTP/1.1, over TLS for https (ALPN
     /// offers only http/1.1), and does not follow redirects: a 3xx is
     /// returned as it is, its Location in the headers.
-    public func Open(_ req: Request, url: URL) async throws -> ResponseStream {
-        let host = url.Host
-        let port = url.Port
-        let secure = url.Scheme == "https"
+    public func Open(_ req: Request, url target: url.URL) async throws -> ResponseStream {
+        let host = target.Host
+        let port = target.EffectivePort
+        let secure = target.Scheme == "https"
         var r = req
-        let defaultPort: uint16 = secure ? 443 : 80
         if r.Headers.Get("Host") == nil {
-            r.Headers.Set("Host", port == defaultPort ? host : "\(host):\(port)")
+            r.Headers.Set("Host", hostHeader(host, port, secure: secure))
         }
         if r.Headers.Get("User-Agent") == nil {
             r.Headers.Set("User-Agent", "Vertex-HTTP/1.1")

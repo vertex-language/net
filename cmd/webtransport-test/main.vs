@@ -21,19 +21,19 @@ func testUrlParsing() {
     print("=== WebTransport URL Parsing ===")
 
     do {
-        let u1 = try webtransport.WebTransportURL.Parse("https://game.example.com/wt")
+        let u1 = try webtransport.ParseEndpoint("https://game.example.com/wt")
         check(u1.Scheme == "https", "url: scheme is https")
         check(u1.Host == "game.example.com", "url: host is game.example.com")
-        check(u1.Port == 443, "url: default port is 443")
+        check(u1.EffectivePort == 443, "url: default port is 443")
         check(u1.Path == "/wt", "url: path is /wt")
     } catch {
         check(false, "url: parse game.example.com failed")
     }
 
     do {
-        let u2 = try webtransport.WebTransportURL.Parse("https://127.0.0.1:4433/chat/lobby")
+        let u2 = try webtransport.ParseEndpoint("https://127.0.0.1:4433/chat/lobby")
         check(u2.Host == "127.0.0.1", "url: host is 127.0.0.1")
-        check(u2.Port == 4433, "url: custom port is 4433")
+        check(u2.EffectivePort == 4433, "url: custom port is 4433")
         check(u2.Path == "/chat/lobby", "url: path is /chat/lobby")
     } catch {
         check(false, "url: parse 127.0.0.1:4433 failed")
@@ -41,7 +41,7 @@ func testUrlParsing() {
 
     var threwInvalid = false
     do {
-        _ = try webtransport.WebTransportURL.Parse("http://plain.example.com/wt")
+        _ = try webtransport.ParseEndpoint("http://plain.example.com/wt")
     } catch {
         threwInvalid = true
     }

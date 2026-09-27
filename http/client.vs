@@ -5,88 +5,14 @@ import (
     "net/quic"
     "net/tcp"
     "net/udp"
+    "net/url"
 )
 
-/// URL represents a parsed HTTP or HTTPS URL.
-public struct URL {
-    public var Scheme: string
-    public var Host: string
-    public var Port: uint16
-    public var Path: string
-
-    public init(scheme: string, host: string, port: uint16, path: string) {
-        self.Scheme = scheme
-        self.Host = host
-        self.Port = port
-        self.Path = path
-    }
-
-    public init(host: string, port: uint16, path: string) {
-        self.Scheme = "http"
-        self.Host = host
-        self.Port = port
-        self.Path = path
-    }
-
-    public static func Parse(_ url: string) throws -> URL {
-        let httpsPrefix = "https://"
-        let httpPrefix = "http://"
-        var urlBytes: [uint8] = []
-        for b in url.utf8 { urlBytes.append(b) }
-
-        var scheme = "http"
-        var offset = 0
-        var defaultPort: uint16 = 80
-        if url.hasPrefix(httpsPrefix) {
-            scheme = "https"
-            offset = 8
-            defaultPort = 443
-        } else if url.hasPrefix(httpPrefix) {
-            scheme = "http"
-            offset = 7
-            defaultPort = 80
-        }
-
-        // Find host[:port] and path
-        var pathStart = -1
-        var i = offset
-        while i < urlBytes.count {
-            if urlBytes[i] == 47 { // '/'
-                pathStart = i
-                break
-            }
-            i += 1
-        }
-
-        let hostPortStr = (pathStart < 0) ? asciiString(urlBytes, from: offset, to: urlBytes.count)
-                                          : asciiString(urlBytes, from: offset, to: pathStart)
-        let path = (pathStart < 0) ? "/" : asciiString(urlBytes, from: pathStart, to: urlBytes.count)
-
-        var colon = -1
-        var hpBytes: [uint8] = []
-        for b in hostPortStr.utf8 { hpBytes.append(b) }
-        var j = 0
-        while j < hpBytes.count {
-            if hpBytes[j] == 58 { // ':'
-                colon = j
-                break
-            }
-            j += 1
-        }
-
-        var host = hostPortStr
-        var port = defaultPort
-        if colon >= 0 {
-            host = asciiString(hpBytes, from: 0, to: colon)
-            let portStr = asciiString(hpBytes, from: colon + 1, to: hpBytes.count)
-            port = uint16(parseContentLength(portStr))
-        }
-
-        if host.isEmpty {
-            throw HttpError.invalidUrl
-        }
-        return URL(scheme: scheme, host: host, port: port, path: path)
-    }
+/// The Host header for a host and port: the port only where it isn't the
+/// scheme's, and an IPv6 address in brackets.
+func hostHeader(_ host: string, _ port: uint16, secure: bool) -> string {
+    let name = host.contains(":") ? "[" + host + "]" : host
+    return port == (secure ? 443 : 80) ? name : "\(name):\(port)"
 }
 
 /// ClientConfig specifies protocol preferences, timeouts, and TLS options for Client.
@@ -153,18 +79,18 @@ public struct Client {
     /// Do sends an HTTP request and returns an HTTP response.
     public mutating func Do(_ req: Request, host: string, port: uint16 = 80, config: tls.Config = tls.Config()) async throws -> Response {
         let scheme = (port == 443) ? "https" : "http"
-        let u = URL(scheme: scheme, host: host, port: port, path: req.URL)
+        let u = url.URL(Scheme: scheme, Host: host, Port: "\(port)", Path: req.URL)
         return try await self.DoUrl(req, url: u)
     }
 
     /// DoUrl executes an HTTP request targeted at a parsed URL.
-    public mutating func DoUrl(_ req: Request, url: URL) async throws -> Response {
-        let host = url.Host
-        let port = url.Port
+    public mutating func DoUrl(_ req: Request, url target: url.URL) async throws -> Response {
+        let host = target.Host
+        let port = target.EffectivePort
         let origin = "\(host):\(port)"
 
         // 1. If HTTPS, check AltSvc cache for HTTP/3 over QUIC
-        if url.Scheme == "https" && self.Config.EnableAltSvc {
+        if target.Scheme == "https" && self.Config.EnableAltSvc {
             var h3Allowed = false
             var vi = 0
             while vi < self.Config.EnabledVersions.count {
@@ -187,8 +113,8 @@ public struct Client {
         }
 
         // 2. HTTPS over TLS 1.3
-        if url.Scheme == "https" {
-            return try await self.executeTls(req: req, url: url)
+        if target.Scheme == "https" {
+            return try await self.executeTls(req: req, url: target)
         }
 
         // 3. Plain HTTP/1.1 over TCP
@@ -202,11 +128,7 @@ public struct Client {
 
         var finalReq = req
         if finalReq.Headers.Get("Host") == nil {
-            if port == 80 {
-                finalReq.Headers.Set("Host", host)
-            } else {
-                finalReq.Headers.Set("Host", "\(host):\(port)")
-            }
+            finalReq.Headers.Set("Host", hostHeader(host, port, secure: false))
         }
         if finalReq.Headers.Get("User-Agent") == nil {
             finalReq.Headers.Set("User-Agent", "Vertex-HTTP/1.1")
@@ -223,9 +145,9 @@ public struct Client {
     }
 
     /// Executes HTTPS over TLS 1.3 with ALPN negotiation (HTTP/2 or HTTP/1.1).
-    mutating func executeTls(req: Request, url: URL) async throws -> Response {
-        let host = url.Host
-        let port = url.Port
+    mutating func executeTls(req: Request, url target: url.URL) async throws -> Response {
+        let host = target.Host
+        let port = target.EffectivePort
         let origin = "\(host):\(port)"
 
         var cfg = self.Config.TLSConfig
@@ -312,11 +234,7 @@ public struct Client {
             // Execute HTTP/1.1
             var finalReq = req
             if finalReq.Headers.Get("Host") == nil {
-                if port == 443 {
-                    finalReq.Headers.Set("Host", host)
-                } else {
-                    finalReq.Headers.Set("Host", "\(host):\(port)")
-                }
+                finalReq.Headers.Set("Host", hostHeader(host, port, secure: true))
             }
             if finalReq.Headers.Get("User-Agent") == nil {
                 finalReq.Headers.Set("User-Agent", "Vertex-HTTP/1.1")
@@ -375,23 +293,23 @@ public struct Client {
     }
 
     /// GetH3 sends an HTTP/3 GET request directly over QUIC.
-    public func GetH3(_ url: string) async throws -> Response {
-        let u = try URL.Parse(url)
-        let req = Request(method: "GET", url: u.Path, version: HttpVersion.http3)
-        return try await self.executeH3(req: req, host: u.Host, port: u.Port)
+    public func GetH3(_ address: string) async throws -> Response {
+        let u = try url.Parse(address)
+        let req = Request(method: "GET", url: u.RequestURI, version: HttpVersion.http3)
+        return try await self.executeH3(req: req, host: u.Host, port: u.EffectivePort)
     }
 
     /// Get sends an HTTP or HTTPS GET request to the specified URL.
-    public mutating func Get(_ url: string) async throws -> Response {
-        let u = try URL.Parse(url)
-        let req = Request(method: "GET", url: u.Path)
+    public mutating func Get(_ address: string) async throws -> Response {
+        let u = try url.Parse(address)
+        let req = Request(method: "GET", url: u.RequestURI)
         return try await self.DoUrl(req, url: u)
     }
 
     /// Post sends an HTTP or HTTPS POST request with the specified body to the URL.
-    public mutating func Post(_ url: string, contentType: string, body: [uint8]) async throws -> Response {
-        let u = try URL.Parse(url)
-        var req = Request(method: "POST", url: u.Path)
+    public mutating func Post(_ address: string, contentType: string, body: [uint8]) async throws -> Response {
+        let u = try url.Parse(address)
+        var req = Request(method: "POST", url: u.RequestURI)
         req.Headers.Set("Content-Type", contentType)
         req.Body = body
         return try await self.DoUrl(req, url: u)
@@ -456,20 +374,20 @@ public func ReadResponseTls(from conn: inout tls.Conn) async throws -> Response 
 public var DefaultClient = Client()
 
 /// Get sends an HTTP GET request to url using DefaultClient.
-public func Get(_ url: string) async throws -> Response {
+public func Get(_ address: string) async throws -> Response {
     var c = Client()
-    return try await c.Get(url)
+    return try await c.Get(address)
 }
 
 /// Post sends an HTTP POST request to url using DefaultClient.
-public func Post(_ url: string, contentType: string, body: [uint8]) async throws -> Response {
+public func Post(_ address: string, contentType: string, body: [uint8]) async throws -> Response {
     var c = Client()
-    return try await c.Post(url, contentType: contentType, body: body)
+    return try await c.Post(address, contentType: contentType, body: body)
 }
 
 /// GetH3 sends an HTTP/3 GET request to url directly over QUIC.
-public func GetH3(_ url: string) async throws -> Response {
+public func GetH3(_ address: string) async throws -> Response {
     var c = Client()
-    return try await c.GetH3(url)
+    return try await c.GetH3(address)
 }
 

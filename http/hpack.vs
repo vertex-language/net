@@ -169,9 +169,8 @@ public func HpackDecodeString(data: [uint8], offset: int) throws -> DecodedStr {
     }
 
     if isHuffman {
-        // Fallback for simple ASCII representation
-        let str = asciiString(data, from: dataStart, to: dataStart + strLen)
-        return DecodedStr(value: str, bytesRead: lenDec.BytesRead + strLen)
+        let decoded = try HuffmanDecode(data, from: dataStart, to: dataStart + strLen)
+        return DecodedStr(value: asciiString(decoded, from: 0, to: decoded.count), bytesRead: lenDec.BytesRead + strLen)
     } else {
         let str = asciiString(data, from: dataStart, to: dataStart + strLen)
         return DecodedStr(value: str, bytesRead: lenDec.BytesRead + strLen)
@@ -243,10 +242,36 @@ public struct HpackEncoder {
 public struct HpackDecoder {
     public var staticTable: [HpackHeader]
     public var dynamicTable: [HpackHeader]
+    /// The dynamic table's limit, in RFC 7541's size: each entry is its
+    /// name and value in bytes, plus 32. The peer lowers it with a size
+    /// update; 4096 is SETTINGS_HEADER_TABLE_SIZE's default.
+    public var maxTableSize: int = 4096
+    var tableSize: int = 0
 
     public init() {
         self.staticTable = HpackStaticTable()
         self.dynamicTable = []
+    }
+
+    /// Adds an entry at the front, evicting from the back to stay within
+    /// the limit (RFC 7541 Section 4.4).
+    mutating func insert(_ entry: HpackHeader) {
+        let size = entry.Name.utf8.count + entry.Value.utf8.count + 32
+        if size > maxTableSize {
+            dynamicTable = []
+            tableSize = 0
+            return
+        }
+        dynamicTable.insert(entry, at: 0)
+        tableSize += size
+        evict()
+    }
+
+    mutating func evict() {
+        while tableSize > maxTableSize && !dynamicTable.isEmpty {
+            let last = dynamicTable.removeLast()
+            tableSize -= last.Name.utf8.count + last.Value.utf8.count + 32
+        }
     }
 
     public mutating func DecodeHeaders(data: [uint8]) throws -> [HeaderEntry] {
@@ -294,7 +319,7 @@ public struct HpackDecoder {
                 let value = valDec.Value
 
                 headers.append(HeaderEntry(key: name, value: value))
-                dynamicTable.insert(HpackHeader(name: name, value: value), at: 0)
+                insert(HpackHeader(name: name, value: value))
             } else if (b & 0xf0) == 0x00 || (b & 0xf0) == 0x10 {
                 // 3. Literal Header Field without Indexing (starts with 0000 or 0001, 4-bit prefix)
                 let intDec = try HpackDecodeInt(data: data, offset: offset, prefixBits: 4)
@@ -321,6 +346,8 @@ public struct HpackDecoder {
                 // 4. Dynamic Table Size Update (starts with 001, 5-bit prefix)
                 let intDec = try HpackDecodeInt(data: data, offset: offset, prefixBits: 5)
                 offset += intDec.BytesRead
+                maxTableSize = intDec.Value
+                evict()
             } else {
                 offset += 1
             }

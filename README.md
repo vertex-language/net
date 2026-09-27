@@ -13,14 +13,15 @@ Networking library providing asynchronous TCP and UDP socket primitives, multi-p
 
 - **`net/tcp`**: Asynchronous stream connections and listeners over platform POSIX sockets (`tcp.Listen`, `tcp.Connect`, `tcp.TcpStream`, `tcp.TcpListener`). A `TcpStream` is an `io.AsyncReader` and `io.AsyncWriter`, so `io.AsyncBufferedReader(stream).ReadLine()` and `io.Copy` take it.
 - **`net/udp`**: Asynchronous datagram communication and peer binding (`udp.Bind`, `udp.UdpSocket`).
+- **`net/url`**: RFC 3986 URLs with the web's leniency (WHATWG): `url.Parse` for absolute URLs and relative references, `URL.Resolve`/`ResolveReference`, `String()`, `Host`/`Port`/`EffectivePort` (IPv6-aware), `RequestURI`, `Origin`; `PathEscape`/`QueryEscape` and their unescapes; query `Values` (`ParseQuery`, `Get`, `Add`, `Encode`). Every package here that takes a URL parses it with this.
 - **`net/http`**: Unified multi-protocol HTTP client and server supporting:
   - **HTTP/1.1**: Plain TCP keep-alive and TLS 1.3 fallback.
-  - **HTTP/2**: RFC 9113 binary framing, stream multiplexing, and RFC 7541 HPACK compression negotiated via TLS 1.3 ALPN (`"h2"`).
+  - **HTTP/2**: RFC 9113 binary framing, stream multiplexing, and RFC 7541 HPACK compression (Huffman-coded strings, and a dynamic table that evicts to its size) negotiated via TLS 1.3 ALPN (`"h2"`).
   - **HTTP/3**: RFC 9114 binary framing and RFC 9204 QPACK compression over QUIC, discovered via RFC 7838 `Alt-Svc`.
   - Public APIs: `http.Get`, `http.Post`, `http.Client`, `http.Server`, `http.ServeConn`, `http.ServeConnTls`.
   - Streamed bodies: `Client.Open(req, url:)` returns once the headers are in, as an `http.ResponseStream` (an `io.AsyncReader`) that reads the body as it arrives — sized, chunked or to the close — for bodies too big to hold, such as model weights. HTTP/1.1; redirects are returned, not followed.
-- **`net/websocket`**: RFC 6455 WebSocket client and server over plain TCP (`ws://`) and TLS 1.3 (`wss://`) with complete frame masking/demasking, ping/pong heartbeats, close handshakes, and fragment reassembly (`websocket.Connect`, `websocket.Upgrade`, `websocket.UpgradeTLS`, `websocket.Server`, `WebSocket`).
-- **`net/webtransport`**: RFC 9297 WebTransport over HTTP/3 and QUIC with multiplexed bidirectional and unidirectional reliable streams, unreliable datagrams (RFC 9221), HTTP/3 extended CONNECT session negotiation, and capsule protocol control signaling (`webtransport.Connect`, `webtransport.Listen`, `WebTransportSession`, `WebTransportStream`, `WebTransportListener`, `Upgrader`).
+- **`net/websocket`**: RFC 6455 WebSocket client and server over plain TCP (`ws://`) and TLS 1.3 (`wss://`) with complete frame masking/demasking, ping/pong heartbeats, close handshakes, and fragment reassembly (`websocket.Connect`, `websocket.ParseEndpoint`, `websocket.Upgrade`, `websocket.UpgradeTLS`, `websocket.Server`, `WebSocket`).
+- **`net/webtransport`**: RFC 9297 WebTransport over HTTP/3 and QUIC with multiplexed bidirectional and unidirectional reliable streams, unreliable datagrams (RFC 9221), HTTP/3 extended CONNECT session negotiation, and capsule protocol control signaling (`webtransport.Connect`, `webtransport.ParseEndpoint`, `webtransport.Listen`, `WebTransportSession`, `WebTransportStream`, `WebTransportListener`, `Upgrader`).
 - **`net/quic`**: RFC 9000, 9001, 9002, and 9221 QUIC transport protocol with bidirectional/unidirectional streams, ChaCha20-Poly1305 packet protection, NewReno congestion control, and unreliable datagrams (`quic.Connect`, `quic.Listen`, `QuicConnection`, `QuicStream`).
 - **`net/webrtc`**: RFC 9429 WebRTC PeerConnection, JSEP Offer/Answer state machine, and RFC 8866 SDP negotiation (`RTCPeerConnection`).
 - **`net/datachannel`**: RFC 8831 / RFC 8832 WebRTC Data Channels and DCEP channel establishment (`RTCDataChannel`).
@@ -37,6 +38,7 @@ Run network tests and tools in `cmd/` directly with `vsc run`:
 
 ```bash
 # Web & transport protocols
+vsc run url-test
 vsc run http-test
 vsc run websocket-test
 vsc run quic-test
@@ -301,6 +303,7 @@ see.
 ```bash
 # Web & Transport Protocols
 vsc run websocket-test     # WebSocket RFC 6455 (frames, masking, handshake, echo)
+vsc run url-test           # URL parsing and RFC 3986 resolution
 vsc run http-test          # Multi-protocol HTTP (HTTP/1.1, HTTP/2 HPACK, HTTP/3 QPACK, Alt-Svc)
 vsc run quic-test          # QUIC RFC 9000, 9001, 9002, 9221 datagrams
 

@@ -4,113 +4,21 @@ import (
     "crypto/tls"
     "net/http"
     "net/tcp"
+    "net/url"
 )
 
-/// Parsed WebSocket URL representation.
-public struct WebSocketURL {
-    public var Scheme: string
-    public var Host: string
-    public var Port: uint16
-    public var Path: string
-
-    public init(scheme: string, host: string, port: uint16, path: string) {
-        self.Scheme = scheme
-        self.Host = host
-        self.Port = port
-        self.Path = path
+/// A WebSocket endpoint's URL, parsed: ws:// or wss://, with a host.
+public func ParseEndpoint(_ address: string) throws -> url.URL {
+    let u: url.URL
+    do {
+        u = try url.Parse(address)
+    } catch {
+        throw WebSocketError.invalidUrl("not a URL: '\(address)'")
     }
-
-    public static func Parse(_ url: string) throws -> WebSocketURL {
-        let wssPrefix = "wss://"
-        let wsPrefix = "ws://"
-        var urlBytes: [uint8] = []
-        for b in url.utf8 { urlBytes.append(b) }
-
-        var scheme = "ws"
-        var offset = 0
-        var defaultPort: uint16 = 80
-
-        if url.hasPrefix(wssPrefix) {
-            scheme = "wss"
-            offset = 6
-            defaultPort = 443
-        } else if url.hasPrefix(wsPrefix) {
-            scheme = "ws"
-            offset = 5
-            defaultPort = 80
-        } else {
-            throw WebSocketError.invalidUrl("URL must start with ws:// or wss://: '\(url)'")
-        }
-
-        var pathStart = -1
-        var i = offset
-        while i < urlBytes.count {
-            if urlBytes[i] == 47 { // '/'
-                pathStart = i
-                break
-            }
-            i += 1
-        }
-
-        var hostPortBytes: [uint8] = []
-        let hpEnd = (pathStart < 0) ? urlBytes.count : pathStart
-        var hi = offset
-        while hi < hpEnd {
-            hostPortBytes.append(urlBytes[hi])
-            hi += 1
-        }
-        let hostPortStr = string(decoding: hostPortBytes, as: UTF8.self)
-
-        var path = "/"
-        if pathStart >= 0 {
-            var pathBytes: [uint8] = []
-            var pi = pathStart
-            while pi < urlBytes.count {
-                pathBytes.append(urlBytes[pi])
-                pi += 1
-            }
-            path = string(decoding: pathBytes, as: UTF8.self)
-        }
-
-        var colon = -1
-        var ci = 0
-        while ci < hostPortBytes.count {
-            if hostPortBytes[ci] == 58 { // ':'
-                colon = ci
-                break
-            }
-            ci += 1
-        }
-
-        var host = hostPortStr
-        var port = defaultPort
-
-        if colon >= 0 {
-            var hBytes: [uint8] = []
-            var k = 0
-            while k < colon { hBytes.append(hostPortBytes[k]); k += 1 }
-            host = string(decoding: hBytes, as: UTF8.self)
-
-            var pVal: uint16 = 0
-            k = colon + 1
-            while k < hostPortBytes.count {
-                let b = hostPortBytes[k]
-                if b >= 48 && b <= 57 {
-                    pVal = pVal * 10 + uint16(b - 48)
-                }
-                k += 1
-            }
-            if pVal > 0 {
-                port = pVal
-            }
-        }
-
-        if host.isEmpty {
-            throw WebSocketError.invalidUrl("Host cannot be empty in URL: '\(url)'")
-        }
-
-        return WebSocketURL(scheme: scheme, host: host, port: port, path: path)
+    if u.Scheme != "ws" && u.Scheme != "wss" {
+        throw WebSocketError.invalidUrl("URL must start with ws:// or wss://: '\(address)'")
     }
+    return u
 }
 
 /// Client configuration options.
@@ -139,26 +47,26 @@ public struct ClientConfig {
 }
 
 /// Connects to a WebSocket endpoint written as text ("ws://..." or "wss://...").
-public func Connect(_ url: string) async throws -> WebSocket {
+public func Connect(_ address: string) async throws -> WebSocket {
     let cfg = ClientConfig()
-    return try await Connect(url, config: cfg)
+    return try await Connect(address, config: cfg)
 }
 
 /// Connects to a WebSocket endpoint with specified subprotocols.
-public func Connect(_ url: string, subprotocols: [string]) async throws -> WebSocket {
+public func Connect(_ address: string, subprotocols: [string]) async throws -> WebSocket {
     let cfg = ClientConfig(subprotocols: subprotocols)
-    return try await Connect(url, config: cfg)
+    return try await Connect(address, config: cfg)
 }
 
 /// Connects to a WebSocket endpoint with custom client configuration.
-public func Connect(_ url: string, config: ClientConfig) async throws -> WebSocket {
-    let parsedUrl = try WebSocketURL.Parse(url)
+public func Connect(_ address: string, config: ClientConfig) async throws -> WebSocket {
+    let parsedUrl = try ParseEndpoint(address)
     let clientKey = GenerateClientKey()
     let expectedAccept = ComputeAcceptKey(clientKey)
     let handshakeReqText = BuildClientHandshake(
         host: parsedUrl.Host,
-        port: parsedUrl.Port,
-        path: parsedUrl.Path,
+        port: parsedUrl.EffectivePort,
+        path: parsedUrl.RequestURI,
         key: clientKey,
         subprotocols: config.Subprotocols
     )
@@ -169,7 +77,7 @@ public func Connect(_ url: string, config: ClientConfig) async throws -> WebSock
             tlsCfg.ServerName = parsedUrl.Host
         }
 
-        var tlsConn = try await tls.Connect(host: parsedUrl.Host, port: parsedUrl.Port, config: tlsCfg)
+        var tlsConn = try await tls.Connect(host: parsedUrl.Host, port: parsedUrl.EffectivePort, config: tlsCfg)
         do {
             try await tlsConn.WriteText(handshakeReqText)
             let response = try await http.ReadResponseTls(from: &tlsConn)
@@ -184,7 +92,7 @@ public func Connect(_ url: string, config: ClientConfig) async throws -> WebSock
             throw error
         }
     } else {
-        let stream = try await tcp.Connect(host: parsedUrl.Host, port: parsedUrl.Port, timeoutMs: config.TimeoutMs)
+        let stream = try await tcp.Connect(host: parsedUrl.Host, port: parsedUrl.EffectivePort, timeoutMs: config.TimeoutMs)
         do {
             try await stream.WriteText(handshakeReqText)
             let response = try await http.ReadResponse(from: stream)
