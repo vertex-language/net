@@ -16,6 +16,10 @@ public struct H2Stream {
     public var InboundHeaders: [HeaderEntry]
     public var InboundBody: [uint8]
     public var WindowSize: int
+    /// A header block still arriving in CONTINUATION frames, and
+    /// whether its HEADERS frame ended the stream.
+    public var HeaderBlock: [uint8] = []
+    public var HeaderBlockEndsStream: bool = false
 
     public init(streamId: uint32, initialWindowSize: int = 65535) {
         self.StreamId = streamId
@@ -156,13 +160,25 @@ public struct H2ClientSession {
 
         var isEndStream = (frame.Header.Flags & H2Flag.EndStream) != 0
 
-        if frame.Header.Type == H2FrameType.Headers {
-            let decoded = try self.Decoder.DecodeHeaders(data: frame.Payload)
+        if frame.Header.Type == H2FrameType.Headers || frame.Header.Type == H2FrameType.Continuation {
+            // A header block is decoded whole, once its last fragment is
+            // in: a HEADERS frame's and then any CONTINUATIONs'.
+            if frame.Header.Type == H2FrameType.Headers {
+                self.Streams[streamIdx].HeaderBlock = try H2FrameContent(frame)
+                self.Streams[streamIdx].HeaderBlockEndsStream = isEndStream
+            } else {
+                for b in frame.Payload { self.Streams[streamIdx].HeaderBlock.append(b) }
+            }
+            if (frame.Header.Flags & H2Flag.EndHeaders) == 0 { return nil }
+            let decoded = try self.Decoder.DecodeHeaders(data: self.Streams[streamIdx].HeaderBlock)
+            self.Streams[streamIdx].HeaderBlock = []
             for d in decoded {
                 self.Streams[streamIdx].InboundHeaders.append(d)
             }
+            isEndStream = self.Streams[streamIdx].HeaderBlockEndsStream
         } else if frame.Header.Type == H2FrameType.Data {
-            for b in frame.Payload {
+            // The data without its padding; flow control counts it all.
+            for b in try H2FrameContent(frame) {
                 self.Streams[streamIdx].InboundBody.append(b)
             }
             // Auto-acknowledge stream and connection window

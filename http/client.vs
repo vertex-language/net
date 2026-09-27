@@ -83,8 +83,22 @@ public struct Client {
         return try await self.DoUrl(req, url: u)
     }
 
-    /// DoUrl executes an HTTP request targeted at a parsed URL.
+    /// DoUrl executes an HTTP request targeted at a parsed URL. Unless
+    /// the request names its own Accept-Encoding, it asks for gzip or
+    /// deflate and hands back the body decoded.
     public mutating func DoUrl(_ req: Request, url target: url.URL) async throws -> Response {
+        var r = req
+        let decodes = r.Headers.Get("Accept-Encoding") == nil
+        if decodes { r.Headers.Set("Accept-Encoding", "gzip, deflate") }
+        var res = try await self.roundTrip(r, url: target)
+        // Servers send gzip unasked too; it's undone either way unless
+        // the caller asked for codings itself.
+        if decodes { decodeContent(&res) }
+        return res
+    }
+
+    /// Sends a request over the best protocol the origin offers.
+    mutating func roundTrip(_ req: Request, url target: url.URL) async throws -> Response {
         let host = target.Host
         let port = target.EffectivePort
         let origin = "\(host):\(port)"
@@ -345,7 +359,21 @@ public func ReadResponseTls(from conn: inout tls.Conn) async throws -> Response 
 
     var res = try Response.ParseHeaders(raw, headerEnd: headerEnd)
 
-    if let clVal = res.Headers.Get("Content-Length") {
+    if let te = res.Headers.Get("Transfer-Encoding"), res.Headers.lower(te).contains("chunked") {
+        // Chunks until the last, empty one; then just their data.
+        var scan = 0
+        while !chunkedComplete(res.Body, &scan) {
+            let n = try await conn.Read(into: &buf)
+            if n == 0 { break }
+            var bi = 0
+            while bi < n {
+                res.Body.append(buf[bi])
+                bi += 1
+            }
+        }
+        res.Body = DecodeChunked(res.Body)
+        res.Headers.Del("Transfer-Encoding")
+    } else if let clVal = res.Headers.Get("Content-Length") {
         let exp = parseContentLength(clVal)
         while res.Body.count < exp {
             let n = try await conn.Read(into: &buf)

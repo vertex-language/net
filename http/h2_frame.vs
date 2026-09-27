@@ -23,6 +23,34 @@ public struct H2Flag {
     public static let Priority: uint8 = 0x20
 }
 
+/// A DATA or HEADERS frame's content: without the pad length and
+/// padding a PADDED frame carries (RFC 9113 6.1, 6.2), and for HEADERS
+/// without the PRIORITY flag's dependency and weight.
+public func H2FrameContent(_ frame: H2Frame) throws -> [uint8] {
+    let p = frame.Payload
+    var start = 0
+    var end = p.count
+    if (frame.Header.Flags & H2Flag.Padded) != 0 {
+        if p.isEmpty { throw HttpError.protocolError }
+        let pad = int(p[0])
+        start = 1
+        end = p.count - pad
+    }
+    if frame.Header.Type == H2FrameType.Headers && (frame.Header.Flags & H2Flag.Priority) != 0 {
+        start += 5
+    }
+    if end < start { throw HttpError.protocolError }
+    if start == 0 && end == p.count { return p }
+    var out: [uint8] = []
+    out.reserveCapacity(end - start)
+    var i = start
+    while i < end {
+        out.append(p[i])
+        i += 1
+    }
+    return out
+}
+
 public struct H2ErrorCode {
     public static let NoError: uint32 = 0x00
     public static let ProtocolError: uint32 = 0x01

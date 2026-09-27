@@ -200,7 +200,21 @@ public func ReadResponse(from stream: tcp.TcpStream) async throws -> Response {
 
     var res = try Response.ParseHeaders(raw, headerEnd: headerEnd)
 
-    if let clVal = res.Headers.Get("Content-Length") {
+    if let te = res.Headers.Get("Transfer-Encoding"), res.Headers.lower(te).contains("chunked") {
+        // Chunks until the last, empty one; then just their data.
+        var scan = 0
+        while !chunkedComplete(res.Body, &scan) {
+            let n = try await stream.Read(into: &buf)
+            if n == 0 { break }
+            var bi = 0
+            while bi < n {
+                res.Body.append(buf[bi])
+                bi += 1
+            }
+        }
+        res.Body = DecodeChunked(res.Body)
+        res.Headers.Del("Transfer-Encoding")
+    } else if let clVal = res.Headers.Get("Content-Length") {
         let expectedLen = parseContentLength(clVal)
         while res.Body.count < expectedLen {
             let n = try await stream.Read(into: &buf)

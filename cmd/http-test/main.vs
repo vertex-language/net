@@ -500,6 +500,21 @@ func testHpackHuffman() {
     }
 }
 
+func testCodings() {
+    print("--- Transfer and content codings ---")
+    // A padded DATA frame: pad length 3, "hi", three bytes of padding.
+    let padded = http.H2Frame(header: http.H2FrameHeader(length: 6, type: http.H2FrameType.Data, flags: http.H2Flag.Padded, streamId: 1), payload: [3, 104, 105, 0, 0, 0])
+    let data = (try? http.H2FrameContent(padded)) ?? []
+    check(data == [104, 105], "H2 DATA padding is stripped")
+    let prio = http.H2Frame(header: http.H2FrameHeader(length: 7, type: http.H2FrameType.Headers, flags: http.H2Flag.Priority | http.H2Flag.Padded, streamId: 1), payload: [1, 0, 0, 0, 3, 16, 130, 0])
+    check(((try? http.H2FrameContent(prio)) ?? []) == [130], "H2 HEADERS priority and padding are stripped")
+    let bad = http.H2Frame(header: http.H2FrameHeader(length: 2, type: http.H2FrameType.Data, flags: http.H2Flag.Padded, streamId: 1), payload: [9, 1])
+    check((try? http.H2FrameContent(bad)) == nil, "H2 padding longer than the frame is an error")
+
+    let chunked: [uint8] = Array("4\r\nWiki\r\n6;ext=1\r\npedia \r\nE\r\nin \r\n\r\nchunks.\r\n0\r\nX-T: 1\r\n\r\n".utf8)
+    check(string(decoding: http.DecodeChunked(chunked), as: UTF8.self) == "Wikipedia in \r\n\r\nchunks.", "chunked body decodes, extensions and trailers skipped")
+}
+
 func main() async -> int32 {
     print("=== net/http Test Suite ===")
     testURL()
@@ -510,6 +525,7 @@ func main() async -> int32 {
     testHpack()
     testHpackHuffman()
     testH2Framing()
+    testCodings()
     testQpackAndH3Framing()
     await testRoundTrip()
     await testStream()
