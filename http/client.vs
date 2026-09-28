@@ -19,6 +19,10 @@ func hostHeader(_ host: string, _ port: uint16, secure: bool) -> string {
 public struct ClientConfig {
     public var EnabledVersions: [HttpVersion]
     public var TimeoutMs: int32
+    /// How long a read or a write on a connection waits before the request
+    /// fails with a timeout: URLSession's timeoutIntervalForRequest, an idle
+    /// time, not the whole request's. 0 waits for as long as it takes.
+    public var ReadTimeoutMs: int32 = 30000
     public var EnableAltSvc: bool
     public var TLSConfig: tls.Config
 
@@ -137,7 +141,9 @@ public struct Client {
 
     /// Executes HTTP/1.1 over plain TCP.
     func executeHttp1(req: Request, host: string, port: uint16) async throws -> Response {
-        let stream = try await tcp.Connect(host: host, port: port)
+        var stream = try await tcp.Connect(host: host, port: port, timeoutMs: self.Config.TimeoutMs)
+        stream.SetReadTimeout(ms: self.Config.ReadTimeoutMs)
+        stream.SetWriteTimeout(ms: self.Config.ReadTimeoutMs)
         defer { stream.Close() }
 
         var finalReq = req
@@ -183,7 +189,14 @@ public struct Client {
         if hasH1 { alpn.append("http/1.1") }
         cfg.NextProtos = alpn
 
-        var conn = try await tls.Connect(host: host, port: port, config: cfg)
+        // A server that stops answering fails the request after the read
+        // timeout, rather than holding the task (and its page) forever.
+        var stream = try await tcp.Connect(host: host, port: port, timeoutMs: self.Config.TimeoutMs)
+        stream.SetReadTimeout(ms: self.Config.ReadTimeoutMs)
+        stream.SetWriteTimeout(ms: self.Config.ReadTimeoutMs)
+        if cfg.ServerName.isEmpty { cfg.ServerName = host }
+        var conn = tls.Client(stream, config: cfg)
+        try await conn.Handshake()
         defer { conn.Close() }
 
         let negotiated = conn.state.NegotiatedProtocol

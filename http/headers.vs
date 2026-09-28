@@ -1,5 +1,7 @@
 package http
 
+import "unicode/utf8"
+
 public struct HeaderEntry {
     public var Key: string
     public var Value: string
@@ -25,9 +27,6 @@ struct HeaderSpan {
 // making anything.
 @_silgen_name("vertex_string_equal_fold")
 func equalFold(_ a: string, _ b: string) -> bool
-
-@_silgen_name("vertex_string_from_utf8")
-func headerStringFromUtf8(_ ptr: UnsafeRawPointer, _ count: int64) -> string
 
 // The same comparison between bytes that are not yet a string -- a header
 // name where it lies in the parsed block -- and one that is, so that
@@ -55,9 +54,7 @@ public struct Header {
     // spanString is the string a span's bytes denote.
     func spanString(_ start: int, _ len: int) -> string {
         if len <= 0 { return "" }
-        return raw.withUnsafeBytes { rp in
-            headerStringFromUtf8(rp.baseAddress! + start, int64(len))
-        }
+        return utf8.Decode(raw, start, start + len)
     }
 
     // spanKeyEquals compares a span's name to key, case-insensitively,

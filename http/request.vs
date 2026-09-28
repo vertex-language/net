@@ -1,18 +1,15 @@
 package http
 
-import "net/tcp"
-
-@_silgen_name("vertex_string_from_utf8")
-func stringFromUtf8(_ ptr: UnsafeRawPointer, _ count: int64) -> string
+import (
+    "net/tcp"
+    "unicode/utf8"
+)
 
 func asciiString(_ bytes: [uint8], from: int, to: int) -> string {
     if from >= to || from >= bytes.count {
         return ""
     }
-    let count = to - from
-    return bytes.withUnsafeBytes { raw in
-        stringFromUtf8(raw.baseAddress! + from, int64(count))
-    }
+    return utf8.Decode(bytes, from, to)
 }
 
 func trimSpaces(_ s: string) -> string {
