@@ -137,6 +137,60 @@ func testRoundTrip() async {
     }
 }
 
+/// Redirects: followed when MaxRedirects allows, a 303 turns a POST into a
+/// GET, a 307 keeps it, and the Authorization header stays home.
+func testRedirects() async {
+    do {
+        let listener = try tcp.Listen("127.0.0.1:0")
+        let port = listener.LocalAddress.Port()
+        let serverTask = Task { () async -> [string] in
+            var seen: [string] = []
+            while seen.count < 8 {
+                do {
+                    let client = try await listener.Accept()
+                    await http.ServeConn(stream: client) { req in
+                        seen.append("\(req.Method) \(req.URL) auth=\(req.Headers.Get("Authorization") ?? "-") body=\(req.Body.count)")
+                        var w = http.ResponseWriter()
+                        switch req.URL {
+                        case "/a": w.SetStatus(302); w.SetHeader("Location", "/b?x=1")
+                        case "/post303": w.SetStatus(303); w.SetHeader("Location", "/b")
+                        case "/post307": w.SetStatus(307); w.SetHeader("Location", "/echo")
+                        case "/away": w.SetStatus(302); w.SetHeader("Location", "http://localhost:\(port)/b")
+                        default: w.SetStatus(200); w.Write(req.Body.isEmpty ? [uint8]("done".utf8) : req.Body)
+                        }
+                        return w
+                    }
+                } catch {
+                    break
+                }
+            }
+            return seen
+        }
+        var c = http.Client(config: http.ClientConfig(enabledVersions: [http.HttpVersion.http1_1]))
+        c.Config.MaxRedirects = 5
+        let r1 = try await c.DoUrl(http.Request(method: "GET", url: "/a"), url: try url.Parse("http://127.0.0.1:\(port)/a"))
+        check(r1.StatusCode == 200 && r1.BodyText() == "done", "a 302 is followed to its target")
+        var post = http.Request(method: "POST", url: "/post303")
+        post.Body = [uint8]("payload".utf8)
+        let r2 = try await c.DoUrl(post, url: try url.Parse("http://127.0.0.1:\(port)/post303"))
+        check(r2.BodyText() == "done", "a 303 after a POST is a GET with no body")
+        var post7 = http.Request(method: "POST", url: "/post307")
+        post7.Body = [uint8]("payload".utf8)
+        let r3 = try await c.DoUrl(post7, url: try url.Parse("http://127.0.0.1:\(port)/post307"))
+        check(r3.BodyText() == "payload", "a 307 repeats the POST with its body")
+        var authed = http.Request(method: "GET", url: "/away")
+        authed.Headers.Set("Authorization", "Bearer secret")
+        _ = try await c.DoUrl(authed, url: try url.Parse("http://127.0.0.1:\(port)/away"))
+        let seen = await serverTask.value
+        check(seen.count == 8 && seen[0].hasPrefix("GET /a ") && seen[1].hasPrefix("GET /b?x=1 "), "the redirect target's path and query are requested")
+        check(seen.count == 8 && seen[3].hasPrefix("GET /b ") && seen[3].contains("body=0") && seen[5].contains("POST /echo") && seen[5].contains("body=7"), "the 307 hop carries method and body")
+        check(seen.count == 8 && seen[6].contains("auth=Bearer secret") && seen[7].contains("auth=-"), "Authorization is not sent to another host")
+        listener.Close()
+    } catch {
+        check(false, "redirects threw \(error)")
+    }
+}
+
 func testSerialization() {
     var req = http.Request(method: "POST", url: "/submit")
     req.Headers.Set("Content-Type", "application/json")
@@ -528,6 +582,7 @@ func main() async -> int32 {
     testCodings()
     testQpackAndH3Framing()
     await testRoundTrip()
+    await testRedirects()
     await testStream()
     print(failures == 0 ? "All net/http tests passed!" : "\(failures) tests failed.")
     return int32(failures)

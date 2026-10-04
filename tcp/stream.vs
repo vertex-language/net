@@ -73,7 +73,26 @@ public func Connect(_ address: string, timeoutMs: int32 = 5000) async throws -> 
 /// the task; see `Resolve`. The connection itself does not: it waits the
 /// way every other operation here does.
 public func Connect(host: string, port: uint16, timeoutMs: int32 = 5000) async throws -> TcpStream {
-    let target = "\(host):\(port)"
+    // A name may stand for several addresses -- "localhost" is ::1 and
+    // 127.0.0.1 -- and a server need only listen on one of them: each is
+    // tried in the resolver's order until one answers.
+    let addresses = (try? Resolve(host: host, port: port)) ?? []
+    if addresses.count > 1 {
+        var lastError: (any Error)? = nil
+        for a in addresses {
+            do {
+                return try await connectOne(host: a.Host(), port: port, timeoutMs: timeoutMs, name: "\(host):\(port)")
+            } catch {
+                lastError = error
+            }
+        }
+        throw lastError ?? TcpError.connectionRefused("\(host):\(port)")
+    }
+    return try await connectOne(host: host, port: port, timeoutMs: timeoutMs, name: "\(host):\(port)")
+}
+
+func connectOne(host: string, port: uint16, timeoutMs: int32, name: string) async throws -> TcpStream {
+    let target = name
     let fd = host.withCString { h in sockConnectBegin(h, int32(port)) }
     if fd < 0 {
         throw errorFor(fd, target)

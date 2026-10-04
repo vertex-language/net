@@ -12,6 +12,7 @@ Networking library providing asynchronous TCP and UDP socket primitives, multi-p
 ## Packages
 
 - **`net/tcp`**: Asynchronous stream connections and listeners over platform POSIX sockets (`tcp.Listen`, `tcp.Connect`, `tcp.TcpStream`, `tcp.TcpListener`). A `TcpStream` is an `io.AsyncReader` and `io.AsyncWriter`, so `io.AsyncBufferedReader(stream).ReadLine()` and `io.Copy` take it.
+- **`net/unix`**: Unix-domain stream sockets named by a path (`unix.Listen`, `unix.Connect`, `unix.UnixStream`), for talking to a local process without a TCP port.
 - **`net/udp`**: Asynchronous datagram communication and peer binding (`udp.Bind`, `udp.UdpSocket`).
 - **`net/url`**: RFC 3986 URLs with the web's leniency (WHATWG): `url.Parse` for absolute URLs and relative references, `URL.Resolve`/`ResolveReference`, `String()`, `Host`/`Port`/`EffectivePort` (IPv6-aware), `RequestURI`, `Origin`; `PathEscape`/`QueryEscape` and their unescapes; query `Values` (`ParseQuery`, `Get`, `Add`, `Encode`). Every package here that takes a URL parses it with this.
 - **`net/http`**: Unified multi-protocol HTTP client and server supporting:
@@ -29,6 +30,18 @@ Networking library providing asynchronous TCP and UDP socket primitives, multi-p
 - **`net/ice`**: RFC 8445 / RFC 8838 Interactive Connectivity Establishment with candidate gathering and connectivity checks (`IceAgent`, `CandidateGatherer`).
 - **`net/turn`**: RFC 8656 Traversal Using Relays around NAT client and relay server (`TurnClient`, `TurnServer`).
 - **`net/stun`**: RFC 8489 STUN NAT traversal discovery and message binding (`stun.Discover`, `stun.Client`, `stun.Message`).
+### A virtual machine's network
+
+What a VM needs to reach the internet, in layers that depend one way:
+`netip` ← `wire` ← `dhcp`, `dns` ← `nat`, with `ether` the link between
+a VM's network card and whatever network it is plugged into.
+
+- **`net/ether`**: the link layer: `Mac` (random ones are locally administered), `Frame` (Ethernet II), `EtherType`, and `Port`, what a VM's card plugs into: `Send` a frame from the card, `Receive` the next one for it. `Queue` is a port's output, pushed from any thread and waited on without polling; `Pipe()` joins two ports back to back.
+- **`net/netip`**: IPv4 addresses (`Ipv4`) and networks (`Prefix`: mask, network, broadcast, membership) as values.
+- **`net/wire`**: the packets' codecs, pure and stateless: `Arp`, `Ipv4Packet`, `Icmp`, `Udp`, `Tcp` (with its MSS option), and the Internet `Checksum` and `PseudoHeader`.
+- **`net/dhcp`**: DHCPv4 `Message`s and a `Server` that leases a pool's addresses by MAC (OFFER, ACK, NAK, INFORM, RELEASE), with reserved addresses.
+- **`net/dns`**: DNS `Message`s (compressed names read) and a `Forwarder` that answers names it is given and sends the rest to the host's own nameservers (`HostNameservers()`, from /etc/resolv.conf), so the guest resolves as the host does.
+- **`net/nat`**: the `Gateway`, an `ether.Port` that is the router of a VM's private network: ARP for itself, DHCP, DNS, ping, and the guest's UDP and TCP carried on host sockets (TCP segmented to the guest's MSS, sent within its window, retransmitted when its ACKs are slow, written to the host in order, half-closes passed on). The gateway's address is the host's loopback. `Config.default` is 192.168.127.0/24; `Config.slirp` is QEMU's 10.0.2.0/24, which the Android emulator's images expect. No root, no TUN/TAP.
 
 ---
 
@@ -319,6 +332,9 @@ vsc run stun-test          # STUN RFC 8489 discovery & binding
 vsc run loopback           # TCP and UDP loopback checks
 vsc run tcp-loopback
 vsc run udp-loopback
+
+# A VM's network
+vsc run nat-test           # netip, ether, wire, dhcp, dns, and a guest through nat.Gateway
 ```
 
 ---

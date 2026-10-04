@@ -25,6 +25,9 @@ public struct ClientConfig {
     public var ReadTimeoutMs: int32 = 30000
     public var EnableAltSvc: bool
     public var TLSConfig: tls.Config
+    /// How many redirects (301, 302, 303, 307, 308) DoUrl follows before
+    /// handing the redirect back. 0, the default, follows none.
+    public var MaxRedirects: int = 0
 
     public init(timeoutMs: int32 = 10000,
                 enableAltSvc: bool = true,
@@ -94,7 +97,30 @@ public struct Client {
         var r = req
         let decodes = r.Headers.Get("Accept-Encoding") == nil
         if decodes { r.Headers.Set("Accept-Encoding", "gzip, deflate") }
-        var res = try await self.roundTrip(r, url: target)
+        var at = target
+        var res = try await self.roundTrip(r, url: at)
+        // Redirects, as browsers and URLSession follow them: 301, 302 and
+        // 303 become a GET with no body, 307 and 308 repeat the request.
+        // Credentials stay with the origin that was given them.
+        var hops = 0
+        while hops < self.Config.MaxRedirects, isRedirect(res.StatusCode), let location = res.Headers.Get("Location") {
+            let next = try at.Resolve(location)
+            if res.StatusCode == 301 || res.StatusCode == 302 || res.StatusCode == 303 {
+                if r.Method != "HEAD" { r.Method = "GET" }
+                r.Body = []
+                r.Headers.Del("Content-Length")
+                r.Headers.Del("Content-Type")
+            }
+            if next.Host != at.Host || next.Scheme != at.Scheme || next.EffectivePort != at.EffectivePort {
+                r.Headers.Del("Authorization")
+                r.Headers.Del("Cookie")
+            }
+            r.URL = next.RequestURI
+            r.Headers.Set("Host", hostHeader(next.Host, next.EffectivePort, secure: next.Scheme == "https"))
+            at = next
+            res = try await self.roundTrip(r, url: at)
+            hops += 1
+        }
         // Servers send gzip unasked too; it's undone either way unless
         // the caller asked for codings itself.
         if decodes { decodeContent(&res) }
@@ -432,3 +458,7 @@ public func GetH3(_ address: string) async throws -> Response {
     return try await c.GetH3(address)
 }
 
+
+func isRedirect(_ status: int32) -> bool {
+    status == 301 || status == 302 || status == 303 || status == 307 || status == 308
+}
