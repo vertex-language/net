@@ -6,6 +6,7 @@
 //     hcurl https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf
 //     hcurl http://127.0.0.1:8000/big.bin               plain TCP: no TLS
 //     hcurl --sha256 -o out.bin https://...             what hub adds: a hash, a file
+//     hcurl -k https://127.0.0.1:8443/big.bin           a local server: TLS alone
 //
 // Beside it, with the same URL:
 //
@@ -14,6 +15,7 @@ package main
 
 import (
     "crypto/sha256"
+    "crypto/tls"
     "fs"
     "net/http"
     "net/url"
@@ -21,8 +23,9 @@ import (
 )
 
 func usage() -> int32 {
-    print("usage: hcurl [-o FILE] [--sha256] [--buf BYTES] [--max BYTES] [-H 'Name: value']... URL")
+    print("usage: hcurl [-k] [-o FILE] [--sha256] [--buf BYTES] [--max BYTES] [-H 'Name: value']... URL")
     print("")
+    print("  -k, --insecure  accept any server certificate, for a local test server")
     print("  -o FILE      write the body to FILE (default: read and discard it)")
     print("  --sha256     hash the body as it arrives, as remote/hub checks a download")
     print("  --buf BYTES  read the body this much at a time (default 262144, hub's)")
@@ -65,6 +68,7 @@ func main() async -> int32 {
     var address = ""
     var outPath = ""
     var hash = false
+    var insecure = false
     var bufSize = 1 << 18
     var max: int64 = -1
     var headers: [(string, string)] = []
@@ -75,6 +79,8 @@ func main() async -> int32 {
         if a == "-o" && i + 1 < args.count {
             outPath = args[i + 1]
             i += 1
+        } else if a == "-k" || a == "--insecure" {
+            insecure = true
         } else if a == "--sha256" {
             hash = true
         } else if a == "--buf" && i + 1 < args.count {
@@ -107,7 +113,7 @@ func main() async -> int32 {
 
     do {
         let start = time.Instant.Now()
-        let client = http.Client(timeoutMs: 30000)
+        let client = http.Client(tlsConfig: tls.Config(insecureSkipVerify: insecure), timeoutMs: 30000)
         var u = try url.Parse(address)
         var hops: [string] = []
         var stream: http.ResponseStream? = nil
