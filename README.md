@@ -60,6 +60,10 @@ vsc run quic-test
 vsc run webrtc-test
 vsc run datachannel-test
 vsc run loopback
+
+# Download speed through net/http, timed per part, to hold beside curl
+vsc run hcurl -- https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf
+vsc run hcurl -- --sha256 -o out.bin http://127.0.0.1:8000/big.bin
 ```
 
 ### 1. Unified HTTP & HTTPS Client (HTTP/1.1, HTTP/2, HTTP/3)
