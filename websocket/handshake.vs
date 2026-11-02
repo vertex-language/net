@@ -11,7 +11,7 @@ public func WebSocketGuid() -> string {
 }
 
 /// Computes the Sec-WebSocket-Accept header value per RFC 6455 Section 1.3 & 4.2.2.
-public func ComputeAcceptKey(_ clientKey: string) -> string {
+public func ComputeAcceptKey(clientKey: string) -> string {
     let combined = clientKey + WebSocketGuid()
     var bytes: [uint8] = []
     for b in combined.utf8 {
@@ -97,7 +97,7 @@ public func BuildServerHandshake(clientKey: string, subprotocol: string) -> stri
     return resp
 }
 
-func lowerString(_ s: string) -> string {
+func lowerString(s: string) -> string {
     var out: [uint8] = []
     for b in s.utf8 {
         if b >= 65 && b <= 90 {
@@ -109,7 +109,7 @@ func lowerString(_ s: string) -> string {
     return string(decoding: out, as: UTF8.self)
 }
 
-func headerContainsToken(_ headerValue: string, token: string) -> bool {
+func headerContainsToken(headerValue: string, token: string) -> bool {
     let lowerVal = lowerString(headerValue)
     let lowerTok = lowerString(token)
     return lowerVal.contains(lowerTok)

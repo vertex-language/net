@@ -22,7 +22,7 @@ public func BuildSdp(type: string,
                      sctpPort: uint16,
                      candidates: [ice.Candidate]) -> string {
     var buf: [uint8] = []
-    func appendStr(_ s: string) {
+    func appendStr(s: string) {
         for b in s.utf8 {
             buf.append(b)
         }
@@ -58,7 +58,7 @@ public func BuildSdp(type: string,
 }
 
 /// ParseSdp parses a WebRTC SDP string into structured fields.
-public func ParseSdp(_ sdp: string, type: string) throws -> ParsedSdp {
+public func ParseSdp(sdp: string, type: string) throws -> ParsedSdp {
     var ufrag = ""
     var pwd = ""
     var fp = ""

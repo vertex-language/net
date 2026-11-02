@@ -10,7 +10,7 @@ import (
 
 /// The Host header for a host and port: the port only where it isn't the
 /// scheme's, and an IPv6 address in brackets.
-func hostHeader(_ host: string, _ port: uint16, secure: bool) -> string {
+func hostHeader(host: string, port: uint16, secure: bool) -> string {
     let name = host.contains(":") ? "[" + host + "]" : host
     return port == (secure ? 443 : 80) ? name : "\(name):\(port)"
 }
@@ -84,7 +84,7 @@ public struct Client {
     }
 
     /// Do sends an HTTP request and returns an HTTP response.
-    public mutating func Do(_ req: Request, host: string, port: uint16 = 80, config: tls.Config = tls.Config()) async throws -> Response {
+    public mutating func Do(req: Request, host: string, port: uint16 = 80, config: tls.Config = tls.Config()) async throws -> Response {
         let scheme = (port == 443) ? "https" : "http"
         let u = url.URL(Scheme: scheme, Host: host, Port: "\(port)", Path: req.URL)
         return try await self.DoUrl(req, url: u)
@@ -93,7 +93,7 @@ public struct Client {
     /// DoUrl executes an HTTP request targeted at a parsed URL. Unless
     /// the request names its own Accept-Encoding, it asks for gzip or
     /// deflate and hands back the body decoded.
-    public mutating func DoUrl(_ req: Request, url target: url.URL) async throws -> Response {
+    public mutating func DoUrl(req: Request, url target: url.URL) async throws -> Response {
         var r = req
         let decodes = r.Headers.Get("Accept-Encoding") == nil
         if decodes { r.Headers.Set("Accept-Encoding", "gzip, deflate") }
@@ -128,7 +128,7 @@ public struct Client {
     }
 
     /// Sends a request over the best protocol the origin offers.
-    mutating func roundTrip(_ req: Request, url target: url.URL) async throws -> Response {
+    mutating func roundTrip(req: Request, url target: url.URL) async throws -> Response {
         let host = target.Host
         let port = target.EffectivePort
         let origin = "\(host):\(port)"
@@ -346,21 +346,21 @@ public struct Client {
     }
 
     /// GetH3 sends an HTTP/3 GET request directly over QUIC.
-    public func GetH3(_ address: string) async throws -> Response {
+    public func GetH3(address: string) async throws -> Response {
         let u = try url.Parse(address)
         let req = Request(method: "GET", url: u.RequestURI, version: HttpVersion.http3)
         return try await self.executeH3(req: req, host: u.Host, port: u.EffectivePort)
     }
 
     /// Get sends an HTTP or HTTPS GET request to the specified URL.
-    public mutating func Get(_ address: string) async throws -> Response {
+    public mutating func Get(address: string) async throws -> Response {
         let u = try url.Parse(address)
         let req = Request(method: "GET", url: u.RequestURI)
         return try await self.DoUrl(req, url: u)
     }
 
     /// Post sends an HTTP or HTTPS POST request with the specified body to the URL.
-    public mutating func Post(_ address: string, contentType: string, body: [uint8]) async throws -> Response {
+    public mutating func Post(address: string, contentType: string, body: [uint8]) async throws -> Response {
         let u = try url.Parse(address)
         var req = Request(method: "POST", url: u.RequestURI)
         req.Headers.Set("Content-Type", contentType)
@@ -370,7 +370,7 @@ public struct Client {
 }
 
 /// Writes an HTTP request to an active TLS connection.
-public func WriteRequestTls(_ req: Request, to conn: inout tls.Conn) async throws {
+public func WriteRequestTls(req: Request, to conn: inout tls.Conn) async throws {
     try await conn.WriteText(req.HeaderText())
     if !req.Body.isEmpty {
         try await conn.Write(req.Body)
@@ -441,24 +441,24 @@ public func ReadResponseTls(from conn: inout tls.Conn) async throws -> Response 
 public var DefaultClient = Client()
 
 /// Get sends an HTTP GET request to url using DefaultClient.
-public func Get(_ address: string) async throws -> Response {
+public func Get(address: string) async throws -> Response {
     var c = Client()
     return try await c.Get(address)
 }
 
 /// Post sends an HTTP POST request to url using DefaultClient.
-public func Post(_ address: string, contentType: string, body: [uint8]) async throws -> Response {
+public func Post(address: string, contentType: string, body: [uint8]) async throws -> Response {
     var c = Client()
     return try await c.Post(address, contentType: contentType, body: body)
 }
 
 /// GetH3 sends an HTTP/3 GET request to url directly over QUIC.
-public func GetH3(_ address: string) async throws -> Response {
+public func GetH3(address: string) async throws -> Response {
     var c = Client()
     return try await c.GetH3(address)
 }
 
 
-func isRedirect(_ status: int32) -> bool {
+func isRedirect(status: int32) -> bool {
     status == 301 || status == 302 || status == 303 || status == 307 || status == 308
 }

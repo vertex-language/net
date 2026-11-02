@@ -65,7 +65,7 @@ public final class Gateway: ether.Port {
     let tcp = TcpRelay()
     let udp = UdpRelay()
 
-    public init(_ config: Config = .default) {
+    public init(config: Config = .default) {
         Config = config
         let last = config.Network.Broadcast.Adding(~uint32(0))
         Dhcp = dhcp.Server(dhcp.ServerConfig(serverIp: config.Gateway, network: config.Network,
@@ -80,7 +80,7 @@ public final class Gateway: ether.Port {
         await out.Pop()
     }
 
-    public func Send(_ bytes: [uint8]) async throws {
+    public func Send(bytes: [uint8]) async throws {
         guard let frame = ether.Frame.Parse(bytes) else { return }
         switch frame.EtherType {
         case ether.EtherType.arp:
@@ -93,28 +93,28 @@ public final class Gateway: ether.Port {
     }
 
     /// Whether this address is the gateway's own (it answers ARP for it).
-    func ours(_ a: netip.Ipv4) -> bool {
+    func ours(a: netip.Ipv4) -> bool {
         a == Config.Gateway || a == Config.Dns
     }
 
     /// Where a guest's connection to `a` really goes on the host.
-    func hostAddress(_ a: netip.Ipv4) -> netip.Ipv4 {
+    func hostAddress(a: netip.Ipv4) -> netip.Ipv4 {
         Config.HostLoopback && ours(a) ? netip.Ipv4.loopback : a
     }
 
     /// Hands the guest at `mac` an IPv4 packet.
-    func deliver(_ p: wire.Ipv4Packet, to mac: ether.Mac) {
+    func deliver(p: wire.Ipv4Packet, to mac: ether.Mac) {
         out.Push(ether.Frame(destination: mac, source: Config.Mac, etherType: ether.EtherType.ipv4, payload: p.Encode()).Encode())
     }
 
     /// A UDP datagram to the guest, from `source`.
-    func deliverUdp(from source: netip.Ipv4, _ sport: uint16, to dest: netip.Ipv4, _ dport: uint16, mac: ether.Mac, _ payload: [uint8]) {
+    func deliverUdp(from source: netip.Ipv4, sport: uint16, to dest: netip.Ipv4, dport: uint16, mac: ether.Mac, payload: [uint8]) {
         let seg = wire.Udp(source: sport, destination: dport, payload: payload)
         deliver(wire.Ipv4Packet(source: source, destination: dest, protocol: wire.IpProtocol.udp,
                                 payload: seg.Encode(source: source, destination: dest)), to: mac)
     }
 
-    func arp(_ a: wire.Arp) {
+    func arp(a: wire.Arp) {
         // Only for the gateway's own addresses: answering for others
         // (the address a guest probes before taking it) would look like
         // a conflict.
@@ -124,7 +124,7 @@ public final class Gateway: ether.Port {
                              payload: reply.Encode()).Encode())
     }
 
-    func ipv4(_ p: wire.Ipv4Packet, from mac: ether.Mac) {
+    func ipv4(p: wire.Ipv4Packet, from mac: ether.Mac) {
         switch p.Protocol {
         case wire.IpProtocol.icmp:
             // Echo requests are answered here, for any address: there are
@@ -157,7 +157,7 @@ public final class Gateway: ether.Port {
         }
     }
 
-    func dhcpRequest(_ u: wire.Udp, from mac: ether.Mac) {
+    func dhcpRequest(u: wire.Udp, from mac: ether.Mac) {
         guard let req = dhcp.Message.Parse(u.Payload), let reply = Dhcp.Handle(req) else { return }
         // Before it has an address the client hears broadcast.
         let toBroadcast = reply.YourIp.IsUnspecified || req.ClientIp.IsUnspecified

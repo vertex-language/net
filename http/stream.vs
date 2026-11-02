@@ -249,7 +249,7 @@ public struct ResponseStream: io.AsyncReader {
 
 // The buffer's unread tail moves to its front, over itself.
 @_silgen_name("memmove")
-func c_memmove(_ dest: UnsafeMutableRawPointer, _ src: UnsafeRawPointer, _ n: int) -> UnsafeMutableRawPointer
+func c_memmove(dest: UnsafeMutableRawPointer, src: UnsafeRawPointer, n: int) -> UnsafeMutableRawPointer
 
 enum bodyFraming {
     case none
@@ -260,7 +260,7 @@ enum bodyFraming {
 
 // chunkSize reads a chunk-size line: hex digits, then extensions after a
 // ';', which are ignored.
-func chunkSize(_ line: string) -> int64? {
+func chunkSize(line: string) -> int64? {
     var n: int64 = 0
     var digits = 0
     for b in line.utf8 {
@@ -291,7 +291,7 @@ extension Client {
     /// caller closes. It speaks HTTP/1.1, over TLS for https (ALPN
     /// offers only http/1.1), and does not follow redirects: a 3xx is
     /// returned as it is, its Location in the headers.
-    public func Open(_ req: Request, url target: url.URL) async throws -> ResponseStream {
+    public func Open(req: Request, url target: url.URL) async throws -> ResponseStream {
         let host = target.Host
         let port = target.EffectivePort
         let secure = target.Scheme == "https"

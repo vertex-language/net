@@ -107,7 +107,7 @@ public struct Client {
         return alloc
     }
 
-    func parseAllocationResponse(_ msg: stun.Message, defaultLifetime: uint32) throws -> Allocation {
+    func parseAllocationResponse(msg: stun.Message, defaultLifetime: uint32) throws -> Allocation {
         guard let relayedAttr = msg.GetAttribute(stun.AttributeType.XorRelayedAddress) else {
             throw TurnError.allocationFailed("missing XOR-RELAYED-ADDRESS in Allocate Response")
         }
@@ -235,7 +235,7 @@ public func NewClient(socket: udp.UdpSocket,
 }
 
 /// Decodes an incoming TURN Data Indication packet (RFC 8656 Section 10).
-public func ParseDataIndication(_ msg: stun.Message) throws -> (data: [uint8], peerAddress: udp.SocketAddress) {
+public func ParseDataIndication(msg: stun.Message) throws -> (data: [uint8], peerAddress: udp.SocketAddress) {
     guard let peerAttr = msg.GetAttribute(stun.AttributeType.XorPeerAddress) else {
         throw TurnError.protocolError("missing XOR-PEER-ADDRESS in DataIndication")
     }

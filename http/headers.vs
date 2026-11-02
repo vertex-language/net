@@ -26,13 +26,13 @@ struct HeaderSpan {
 // tokens in Connection. The runtime compares two strings that way without
 // making anything.
 @_silgen_name("vertex_string_equal_fold")
-func equalFold(_ a: string, _ b: string) -> bool
+func equalFold(a: string, b: string) -> bool
 
 // The same comparison between bytes that are not yet a string -- a header
 // name where it lies in the parsed block -- and one that is, so that
 // looking a header up makes nothing.
 @_silgen_name("vertex_string_equal_fold_bytes")
-func equalFoldBytes(_ ptr: UnsafeRawPointer, _ count: int64, _ s: string) -> bool
+func equalFoldBytes(ptr: UnsafeRawPointer, count: int64, s: string) -> bool
 
 public struct Header {
     public var entries: [HeaderEntry] = []
@@ -47,19 +47,19 @@ public struct Header {
 
     public init() {}
 
-    func equalFold(_ a: string, _ b: string) -> bool {
+    func equalFold(a: string, b: string) -> bool {
         return http.equalFold(a, b)
     }
 
     // spanString is the string a span's bytes denote.
-    func spanString(_ start: int, _ len: int) -> string {
+    func spanString(start: int, len: int) -> string {
         if len <= 0 { return "" }
         return utf8.Decode(raw, start, start + len)
     }
 
     // spanKeyEquals compares a span's name to key, case-insensitively,
     // without making the name into a string.
-    func spanKeyEquals(_ span: HeaderSpan, _ key: string) -> bool {
+    func spanKeyEquals(span: HeaderSpan, key: string) -> bool {
         return raw.withUnsafeBytes { rp in
             equalFoldBytes(rp.baseAddress! + span.kStart, int64(span.kLen), key)
         }
@@ -68,7 +68,7 @@ public struct Header {
     // setRaw makes raw hold src[from..<from+count], reusing its storage:
     // it grows only when too short, and bytes past count are left as they
     // were, since every span says where it ends.
-    mutating func setRaw(_ src: [uint8], from: int, count: int) {
+    mutating func setRaw(src: [uint8], from: int, count: int) {
         if count <= 0 { return }
         if raw.count < count {
             raw.append(contentsOf: [uint8](repeating: 0, count: count - raw.count))
@@ -117,7 +117,7 @@ public struct Header {
         return out
     }
 
-    public func lower(_ s: string) -> string {
+    public func lower(s: string) -> string {
         var chars: [CChar] = []
         for b in s.utf8 {
             if b >= 65 && b <= 90 {
@@ -130,7 +130,7 @@ public struct Header {
         return string(cString: chars)
     }
 
-    public mutating func Set(_ key: string, _ value: string) {
+    public mutating func Set(key: string, value: string) {
         var i = 0
         while i < entries.count {
             if equalFold(entries[i].Key, key) {
@@ -142,11 +142,11 @@ public struct Header {
         entries.append(HeaderEntry(key: key, value: value))
     }
 
-    public mutating func Add(_ key: string, _ value: string) {
+    public mutating func Add(key: string, value: string) {
         entries.append(HeaderEntry(key: key, value: value))
     }
 
-    public func Get(_ key: string) -> string? {
+    public func Get(key: string) -> string? {
         var i = 0
         while i < spans.count {
             if spanKeyEquals(spans[i], key) {
@@ -166,7 +166,7 @@ public struct Header {
 
     // spanValueIs reports whether span i's value equals value, ignoring
     // case, comparing the bytes where they lie.
-    func spanValueIs(_ i: int, _ value: string) -> bool {
+    func spanValueIs(i: int, value: string) -> bool {
         let sp = spans[i]
         let same: bool = raw.withUnsafeBytes { rp in
             equalFoldBytes(rp.baseAddress! + sp.vStart, int64(sp.vLen), value)
@@ -177,7 +177,7 @@ public struct Header {
     // valueIs reports whether the header key is present with a value equal
     // to value, ignoring case -- nil when it is absent. A parsed header is
     // compared where its bytes lie, so asking makes no string.
-    func valueIs(_ key: string, _ value: string) -> bool? {
+    func valueIs(key: string, value: string) -> bool? {
         var i = 0
         while i < spans.count {
             if spanKeyEquals(spans[i], key) {
@@ -199,7 +199,7 @@ public struct Header {
         return nil
     }
 
-    public mutating func Del(_ key: string) {
+    public mutating func Del(key: string) {
         var filtered: [HeaderEntry] = []
         var i = 0
         while i < entries.count {

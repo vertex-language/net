@@ -7,7 +7,7 @@ import (
 )
 
 /// A WebTransport endpoint's URL, parsed: https://, with a host.
-public func ParseEndpoint(_ address: string) throws -> url.URL {
+public func ParseEndpoint(address: string) throws -> url.URL {
     let u: url.URL
     do {
         u = try url.Parse(address)
@@ -21,13 +21,13 @@ public func ParseEndpoint(_ address: string) throws -> url.URL {
 }
 
 /// Connects to a WebTransport endpoint over HTTP/3 via QUIC (matching webtransport_package.md).
-public func Connect(_ address: string) async throws -> WebTransportSession {
+public func Connect(address: string) async throws -> WebTransportSession {
     let cfg = WebTransportConfig()
     return try await Connect(address, config: cfg)
 }
 
 /// Connects to a WebTransport endpoint with custom configuration.
-public func Connect(_ address: string, config: WebTransportConfig) async throws -> WebTransportSession {
+public func Connect(address: string, config: WebTransportConfig) async throws -> WebTransportSession {
     let u = try ParseEndpoint(address)
 
     var qConfig = quic.QuicConfig()

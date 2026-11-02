@@ -117,7 +117,7 @@ public struct InitChunk {
         return RawChunk(type: chunkType, flags: 0, value: val)
     }
 
-    public static func Parse(_ raw: RawChunk) -> InitChunk {
+    public static func Parse(raw: RawChunk) -> InitChunk {
         var dummy = InitChunk(initiateTag: 0, a_rwnd: 0, outboundStreams: 0, inboundStreams: 0, initialTSN: 0)
         if raw.Value.count < 16 {
             return dummy
@@ -205,7 +205,7 @@ public struct DataChunk {
         return RawChunk(type: ChunkType.Data, flags: self.Flags, value: val)
     }
 
-    public static func Parse(_ raw: RawChunk) -> DataChunk {
+    public static func Parse(raw: RawChunk) -> DataChunk {
         var dummy = DataChunk(flags: 0, tsn: 0, streamId: 0, streamSeq: 0, ppid: 0, userData: [])
         if raw.Value.count < 12 {
             return dummy
@@ -298,7 +298,7 @@ public struct SackChunk {
         return RawChunk(type: ChunkType.Sack, flags: 0, value: val)
     }
 
-    public static func Parse(_ raw: RawChunk) -> SackChunk {
+    public static func Parse(raw: RawChunk) -> SackChunk {
         var dummy = SackChunk(cumulativeTSNAck: 0, a_rwnd: 0)
         if raw.Value.count < 12 {
             return dummy
@@ -346,7 +346,7 @@ public struct CookieEchoChunk {
         return RawChunk(type: ChunkType.CookieEcho, flags: 0, value: self.Cookie)
     }
 
-    public static func Parse(_ raw: RawChunk) -> CookieEchoChunk {
+    public static func Parse(raw: RawChunk) -> CookieEchoChunk {
         return CookieEchoChunk(cookie: raw.Value)
     }
 }
@@ -359,7 +359,7 @@ public struct CookieAckChunk {
         return RawChunk(type: ChunkType.CookieAck, flags: 0, value: [])
     }
 
-    public static func Parse(_ raw: RawChunk) -> CookieAckChunk {
+    public static func Parse(raw: RawChunk) -> CookieAckChunk {
         return CookieAckChunk()
     }
 }
@@ -389,7 +389,7 @@ public struct HeartbeatChunk {
         return RawChunk(type: chunkType, flags: 0, value: val)
     }
 
-    public static func Parse(_ raw: RawChunk) -> HeartbeatChunk {
+    public static func Parse(raw: RawChunk) -> HeartbeatChunk {
         var info: [uint8] = []
         if raw.Value.count >= 4 {
             var i = 4

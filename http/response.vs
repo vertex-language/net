@@ -35,7 +35,7 @@ public struct Response {
     }
 
     /// Sets the response body to the UTF-8 bytes of text.
-    public mutating func SetBodyText(_ text: string) {
+    public mutating func SetBodyText(text: string) {
         var bytes: [uint8] = []
         for b in text.utf8 { bytes.append(b) }
         self.Body = bytes
@@ -92,12 +92,12 @@ public struct Response {
     }
 
     /// FindHeaderEnd finds the start index of \r\n\r\n in raw bytes, or -1 if not found.
-    public static func FindHeaderEnd(_ raw: [uint8], from: int = 0) -> int {
+    public static func FindHeaderEnd(raw: [uint8], from: int = 0) -> int {
         return Request.FindHeaderEnd(raw, from: from)
     }
 
     /// ParseHeaders parses a Response's status line, headers, and any initial body bytes up to headerEnd.
-    public static func ParseHeaders(_ raw: [uint8], headerEnd: int) throws -> Response {
+    public static func ParseHeaders(raw: [uint8], headerEnd: int) throws -> Response {
         var lines: [string] = []
         var lineStart = 0
         var k = 0

@@ -17,7 +17,7 @@ public struct AltSvcService {
 
 /// Parses an Alt-Svc header value into a list of advertised alternative services.
 /// Example: `h3=":443"; ma=86400` or `h3="alt.example.com:8443"`
-public func ParseAltSvcHeader(_ value: string, defaultHost: string = "") -> [AltSvcService] {
+public func ParseAltSvcHeader(value: string, defaultHost: string = "") -> [AltSvcService] {
     var services: [AltSvcService] = []
     var vBytes: [uint8] = []
     for b in value.utf8 { vBytes.append(b) }

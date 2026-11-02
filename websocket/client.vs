@@ -8,7 +8,7 @@ import (
 )
 
 /// A WebSocket endpoint's URL, parsed: ws:// or wss://, with a host.
-public func ParseEndpoint(_ address: string) throws -> url.URL {
+public func ParseEndpoint(address: string) throws -> url.URL {
     let u: url.URL
     do {
         u = try url.Parse(address)
@@ -47,19 +47,19 @@ public struct ClientConfig {
 }
 
 /// Connects to a WebSocket endpoint written as text ("ws://..." or "wss://...").
-public func Connect(_ address: string) async throws -> WebSocket {
+public func Connect(address: string) async throws -> WebSocket {
     let cfg = ClientConfig()
     return try await Connect(address, config: cfg)
 }
 
 /// Connects to a WebSocket endpoint with specified subprotocols.
-public func Connect(_ address: string, subprotocols: [string]) async throws -> WebSocket {
+public func Connect(address: string, subprotocols: [string]) async throws -> WebSocket {
     let cfg = ClientConfig(subprotocols: subprotocols)
     return try await Connect(address, config: cfg)
 }
 
 /// Connects to a WebSocket endpoint with custom client configuration.
-public func Connect(_ address: string, config: ClientConfig) async throws -> WebSocket {
+public func Connect(address: string, config: ClientConfig) async throws -> WebSocket {
     let parsedUrl = try ParseEndpoint(address)
     let clientKey = GenerateClientKey()
     let expectedAccept = ComputeAcceptKey(clientKey)

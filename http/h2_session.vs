@@ -121,7 +121,7 @@ public struct H2ClientSession {
 
     /// Processes an inbound HTTP/2 frame from the server.
     /// If the frame completes a response on a stream, returns the reconstructed Response.
-    public mutating func ProcessFrame(_ frame: H2Frame) throws -> Response? {
+    public mutating func ProcessFrame(frame: H2Frame) throws -> Response? {
         let streamId = frame.Header.StreamId
 
         // Control stream 0

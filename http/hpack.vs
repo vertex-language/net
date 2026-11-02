@@ -141,7 +141,7 @@ public func HpackDecodeInt(data: [uint8], offset: int, prefixBits: int) throws -
 }
 
 /// Encodes a string literal without Huffman encoding (RFC 7541 Section 5.2).
-public func HpackEncodeString(_ s: string) -> [uint8] {
+public func HpackEncodeString(s: string) -> [uint8] {
     var strBytes: [uint8] = []
     for b in s.utf8 { strBytes.append(b) }
 
@@ -226,7 +226,7 @@ public struct HpackEncoder {
         }
     }
 
-    public func EncodeHeaders(_ headers: [HeaderEntry]) -> [uint8] {
+    public func EncodeHeaders(headers: [HeaderEntry]) -> [uint8] {
         var out: [uint8] = []
         var i = 0
         while i < headers.count {
@@ -255,7 +255,7 @@ public struct HpackDecoder {
 
     /// Adds an entry at the front, evicting from the back to stay within
     /// the limit (RFC 7541 Section 4.4).
-    mutating func insert(_ entry: HpackHeader) {
+    mutating func insert(entry: HpackHeader) {
         let size = entry.Name.utf8.count + entry.Value.utf8.count + 32
         if size > maxTableSize {
             dynamicTable = []

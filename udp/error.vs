@@ -41,7 +41,7 @@ public enum UdpError: Error {
 }
 
 // errorFor translates a negative sock.cpp result code into a UdpError.
-func errorFor(_ code: int32, _ context: string) -> UdpError {
+func errorFor(code: int32, context: string) -> UdpError {
     switch code {
     case Code.refused: return .connectionRefused(context)
     case Code.timedOut: return .timedOut(context)

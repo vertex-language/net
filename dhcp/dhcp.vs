@@ -66,12 +66,12 @@ public struct Message {
         ClientMac = clientMac
     }
 
-    public func Get(_ code: uint8) -> [uint8]? {
+    public func Get(code: uint8) -> [uint8]? {
         for (c, v) in Options where c == code { return v }
         return nil
     }
 
-    public mutating func Set(_ code: uint8, _ value: [uint8]) {
+    public mutating func Set(code: uint8, value: [uint8]) {
         Options = Options.filter { $0.0 != code }
         Options.append((code, value))
     }
@@ -92,7 +92,7 @@ public struct Message {
     public var WantsBroadcast: bool { Flags & 0x8000 != 0 }
 
     /// nil unless a BOOTP message with the DHCP magic cookie.
-    public static func Parse(_ b: [uint8]) -> Message? {
+    public static func Parse(b: [uint8]) -> Message? {
         if b.count < 240 || Array(b[236..<240]) != magic { return nil }
         var m = Message(op: b[0], xid: binary.BigEndian.Uint32(b, from: 4), clientMac: ether.Mac(b, at: 28))
         m.Secs = binary.BigEndian.Uint16(b, from: 8)
@@ -179,13 +179,13 @@ public final class Server {
     var leases: [ether.Mac: netip.Ipv4] = [:]
     let lock = sync.Mutex()
 
-    public init(_ config: ServerConfig) {
+    public init(config: ServerConfig) {
         Config = config
     }
 
     /// The address `mac` holds or would be offered: the one it had, else
     /// the first free one in the pool.
-    public func AddressFor(_ mac: ether.Mac) -> netip.Ipv4? {
+    public func AddressFor(mac: ether.Mac) -> netip.Ipv4? {
         lock.withLock { () -> netip.Ipv4? in
             if let a = leases[mac] { return a }
             var taken = Set(leases.values)
@@ -203,7 +203,7 @@ public final class Server {
     }
 
     /// Who holds `ip`, if anyone.
-    public func Holder(_ ip: netip.Ipv4) -> ether.Mac? {
+    public func Holder(ip: netip.Ipv4) -> ether.Mac? {
         lock.withLock { () -> ether.Mac? in
             for (m, a) in leases where a == ip { return m }
             return nil
@@ -212,7 +212,7 @@ public final class Server {
 
     /// The reply to `request`, or nil when none is due (a release, a
     /// decline, a request meant for another server).
-    public func Handle(_ request: Message) -> Message? {
+    public func Handle(request: Message) -> Message? {
         if request.Op != 1 { return nil }
         switch request.MessageType {
         case Kind.discover:
@@ -239,7 +239,7 @@ public final class Server {
         }
     }
 
-    func reply(_ req: Message, _ kind: uint8, _ yours: netip.Ipv4) -> Message {
+    func reply(req: Message, kind: uint8, yours: netip.Ipv4) -> Message {
         var m = Message(op: 2, xid: req.Xid, clientMac: req.ClientMac)
         m.Flags = req.Flags
         m.YourIp = yours

@@ -111,7 +111,7 @@ public struct URL: Equatable {
     public var QueryValues: Values { return ParseQuery(Query ?? "") }
 
     /// A reference resolved against this URL (RFC 3986 Section 5.2).
-    public func Resolve(_ reference: string) throws -> URL {
+    public func Resolve(reference: string) throws -> URL {
         return ResolveReference(try Parse(reference))
     }
 
@@ -119,7 +119,7 @@ public struct URL: Equatable {
     /// 5.2): `/x` is rooted at the host, `//host/x` takes the scheme,
     /// `../x` climbs, `?q` keeps the path, "" is this URL without its
     /// fragment.
-    public func ResolveReference(_ r: URL) -> URL {
+    public func ResolveReference(r: URL) -> URL {
         if !r.Scheme.isEmpty {
             var out = r
             out.Path = removeDotSegments(r.Path)
@@ -155,7 +155,7 @@ public struct URL: Equatable {
     }
 
     /// This URL's path up to its last slash, then a relative path.
-    func merge(_ path: string) -> string {
+    func merge(path: string) -> string {
         if HasAuthority && Path.isEmpty { return "/" + path }
         let b = [uint8](Path.utf8)
         var i = b.count - 1
@@ -176,7 +176,7 @@ public enum URLError: Error, Equatable {
 }
 
 /// The port a scheme uses when a URL names none, or 0.
-public func DefaultPort(_ scheme: string) -> uint16 {
+public func DefaultPort(scheme: string) -> uint16 {
     switch scheme {
     case "http", "ws": return 80
     case "https", "wss": return 443
@@ -186,7 +186,7 @@ public func DefaultPort(_ scheme: string) -> uint16 {
 }
 
 /// The schemes whose URLs are hierarchical and host-based on the web.
-func isSpecial(_ scheme: string) -> bool {
+func isSpecial(scheme: string) -> bool {
     switch scheme {
     case "http", "https", "ws", "wss", "ftp", "file": return true
     default: return false
@@ -194,7 +194,7 @@ func isSpecial(_ scheme: string) -> bool {
 }
 
 /// Parses an absolute URL or a relative reference.
-public func Parse(_ text: string) throws -> URL {
+public func Parse(text: string) throws -> URL {
     // Leading and trailing spaces and controls go, and tabs and newlines
     // anywhere, as browsers do.
     var b: [uint8] = []
@@ -259,7 +259,7 @@ public func Parse(_ text: string) throws -> URL {
 }
 
 /// Reads userinfo, host and port from b[start..<end].
-func parseAuthority(_ b: [uint8], _ start: int, _ end: int, _ u: inout URL, lowercase: bool) throws {
+func parseAuthority(b: [uint8], start: int, end: int, u: inout URL, lowercase: bool) throws {
     var hostStart = start
     // The userinfo ends at the last '@'.
     var k = end - 1
@@ -302,7 +302,7 @@ func parseAuthority(_ b: [uint8], _ start: int, _ end: int, _ u: inout URL, lowe
     }
 }
 
-func parsePort(_ s: string) -> uint16? {
+func parsePort(s: string) -> uint16? {
     if s.isEmpty { return nil }
     var n = 0
     for c in s.utf8 {
@@ -315,7 +315,7 @@ func parsePort(_ s: string) -> uint16? {
 
 /// A path with its `.` and `..` segments applied (RFC 3986 Section
 /// 5.2.4). A relative path keeps the `..` it can't climb.
-func removeDotSegments(_ path: string) -> string {
+func removeDotSegments(path: string) -> string {
     if !path.contains(".") { return path }
     let rooted = path.hasPrefix("/")
     var out: [string] = []
@@ -348,10 +348,10 @@ func removeDotSegments(_ path: string) -> string {
     return joined
 }
 
-func isAlpha(_ c: uint8) -> bool { return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) }
-func isDigit(_ c: uint8) -> bool { return c >= 48 && c <= 57 }
+func isAlpha(c: uint8) -> bool { return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) }
+func isDigit(c: uint8) -> bool { return c >= 48 && c <= 57 }
 
-func lowerASCII(_ s: string) -> string {
+func lowerASCII(s: string) -> string {
     var b = [uint8](s.utf8)
     var changed = false
     var i = 0
@@ -365,7 +365,7 @@ func lowerASCII(_ s: string) -> string {
     return changed ? stringOf(b, 0, b.count) : s
 }
 
-func stringOf(_ bytes: [uint8], _ start: int, _ end: int) -> string {
+func stringOf(bytes: [uint8], start: int, end: int) -> string {
     if start >= end { return "" }
     return utf8.Decode(bytes, start, end)
 }

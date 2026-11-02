@@ -194,7 +194,7 @@ public func BuildShortHeader(dcid: [uint8],
 }
 
 /// Parses an unencrypted Long Header from raw packet bytes.
-public func ParseLongHeader(_ data: [uint8]) throws -> LongHeader {
+public func ParseLongHeader(data: [uint8]) throws -> LongHeader {
     if data.count < 7 {
         throw QuicError.transport(code: TransportErrorCode.FrameEncodingError, msg: "Long header packet too short")
     }

@@ -9,10 +9,10 @@ var addressTextCapacity: int { return 64 }
 
 // The runtime's wait: suspends the task on the executor until fd is ready.
 @_silgen_name("vertex_task_wait_fd")
-func waitFd(_ fd: int32, _ events: int32, _ timeoutNanos: int64) async -> int32
+func waitFd(fd: int32, events: int32, timeoutNanos: int64) async -> int32
 
 // waitReady waits until a socket can be read from or written to.
-func waitReady(_ fd: int32, _ events: int32, _ timeoutMs: int32) async -> bool {
+func waitReady(fd: int32, events: int32, timeoutMs: int32) async -> bool {
     var nanos: int64 = -1
     if timeoutMs > 0 {
         nanos = int64(timeoutMs) * 1_000_000
@@ -21,7 +21,7 @@ func waitReady(_ fd: int32, _ events: int32, _ timeoutMs: int32) async -> bool {
 }
 
 // chunk holds a byte count inside int32 range.
-func chunk(_ count: int) -> int32 {
+func chunk(count: int) -> int32 {
     return count < 0x7fff_ffff ? int32(count) : 0x7fff_ffff
 }
 

@@ -13,7 +13,7 @@ public struct Attribute {
     }
 }
 
-func parseIPv4Octets(_ ip: string) -> [uint8]? {
+func parseIPv4Octets(ip: string) -> [uint8]? {
     var octets: [uint8] = []
     var current = 0
     var hasDigit = false
@@ -71,7 +71,7 @@ func makeXorAddress(attrType: uint16, address: udp.SocketAddress, transactionId:
     return Attribute(type: attrType, value: val)
 }
 
-func parseXorAddress(_ attr: Attribute, transactionId: [uint8]) throws -> udp.SocketAddress {
+func parseXorAddress(attr: Attribute, transactionId: [uint8]) throws -> udp.SocketAddress {
     if attr.Value.count < 8 {
         throw StunError.malformedAttribute("XOR address value too short")
     }
@@ -103,7 +103,7 @@ public func MakeXorMappedAddress(address: udp.SocketAddress, transactionId: [uin
 }
 
 /// ParseXorMappedAddress decodes an XOR-MAPPED-ADDRESS attribute.
-public func ParseXorMappedAddress(_ attr: Attribute, transactionId: [uint8]) throws -> udp.SocketAddress {
+public func ParseXorMappedAddress(attr: Attribute, transactionId: [uint8]) throws -> udp.SocketAddress {
     return try parseXorAddress(attr, transactionId: transactionId)
 }
 
@@ -113,7 +113,7 @@ public func MakeXorRelayedAddress(address: udp.SocketAddress, transactionId: [ui
 }
 
 /// ParseXorRelayedAddress decodes an XOR-RELAYED-ADDRESS attribute.
-public func ParseXorRelayedAddress(_ attr: Attribute, transactionId: [uint8]) throws -> udp.SocketAddress {
+public func ParseXorRelayedAddress(attr: Attribute, transactionId: [uint8]) throws -> udp.SocketAddress {
     return try parseXorAddress(attr, transactionId: transactionId)
 }
 
@@ -123,7 +123,7 @@ public func MakeXorPeerAddress(address: udp.SocketAddress, transactionId: [uint8
 }
 
 /// ParseXorPeerAddress decodes an XOR-PEER-ADDRESS attribute.
-public func ParseXorPeerAddress(_ attr: Attribute, transactionId: [uint8]) throws -> udp.SocketAddress {
+public func ParseXorPeerAddress(attr: Attribute, transactionId: [uint8]) throws -> udp.SocketAddress {
     return try parseXorAddress(attr, transactionId: transactionId)
 }
 
@@ -156,7 +156,7 @@ public func MakeMappedAddress(address: udp.SocketAddress) -> Attribute {
 }
 
 /// ParseMappedAddress decodes a legacy MAPPED-ADDRESS attribute.
-public func ParseMappedAddress(_ attr: Attribute) throws -> udp.SocketAddress {
+public func ParseMappedAddress(attr: Attribute) throws -> udp.SocketAddress {
     if attr.Value.count < 8 {
         throw StunError.malformedAttribute("MAPPED-ADDRESS value too short")
     }
@@ -173,55 +173,55 @@ public func ParseMappedAddress(_ attr: Attribute) throws -> udp.SocketAddress {
 }
 
 /// MakeSoftware creates a SOFTWARE attribute (RFC 8489 Section 14.8).
-public func MakeSoftware(_ name: string) -> Attribute {
+public func MakeSoftware(name: string) -> Attribute {
     var val: [uint8] = []
     for b in name.utf8 { val.append(b) }
     return Attribute(type: AttrSoftware, value: val)
 }
 
 /// ParseSoftware extracts the software string from a SOFTWARE attribute.
-public func ParseSoftware(_ attr: Attribute) -> string {
+public func ParseSoftware(attr: Attribute) -> string {
     return string(decoding: attr.Value, as: UTF8.self)
 }
 
 /// MakeUsername creates a USERNAME attribute (RFC 8489 Section 14.3).
-public func MakeUsername(_ name: string) -> Attribute {
+public func MakeUsername(name: string) -> Attribute {
     var val: [uint8] = []
     for b in name.utf8 { val.append(b) }
     return Attribute(type: AttrUsername, value: val)
 }
 
 /// ParseUsername extracts the username string from a USERNAME attribute.
-public func ParseUsername(_ attr: Attribute) -> string {
+public func ParseUsername(attr: Attribute) -> string {
     return string(decoding: attr.Value, as: UTF8.self)
 }
 
 /// MakeRealm creates a REALM attribute (RFC 8489 Section 14.7).
-public func MakeRealm(_ realm: string) -> Attribute {
+public func MakeRealm(realm: string) -> Attribute {
     var val: [uint8] = []
     for b in realm.utf8 { val.append(b) }
     return Attribute(type: AttrRealm, value: val)
 }
 
 /// ParseRealm extracts the realm string from a REALM attribute.
-public func ParseRealm(_ attr: Attribute) -> string {
+public func ParseRealm(attr: Attribute) -> string {
     return string(decoding: attr.Value, as: UTF8.self)
 }
 
 /// MakeNonce creates a NONCE attribute (RFC 8489 Section 14.6).
-public func MakeNonce(_ nonce: string) -> Attribute {
+public func MakeNonce(nonce: string) -> Attribute {
     var val: [uint8] = []
     for b in nonce.utf8 { val.append(b) }
     return Attribute(type: AttrNonce, value: val)
 }
 
 /// ParseNonce extracts the nonce string from a NONCE attribute.
-public func ParseNonce(_ attr: Attribute) -> string {
+public func ParseNonce(attr: Attribute) -> string {
     return string(decoding: attr.Value, as: UTF8.self)
 }
 
 /// MakeErrorCode creates an ERROR-CODE attribute (RFC 8489 Section 14.4).
-public func MakeErrorCode(_ code: int, _ reason: string = "") -> Attribute {
+public func MakeErrorCode(code: int, reason: string = "") -> Attribute {
     var val: [uint8] = [0, 0]
     let cl = uint8((code / 100) & 0x07)
     let num = uint8(code % 100)
@@ -234,7 +234,7 @@ public func MakeErrorCode(_ code: int, _ reason: string = "") -> Attribute {
 }
 
 /// ParseErrorCode decodes an ERROR-CODE attribute.
-public func ParseErrorCode(_ attr: Attribute) -> ErrorCodeInfo {
+public func ParseErrorCode(attr: Attribute) -> ErrorCodeInfo {
     if attr.Value.count < 4 {
         return ErrorCodeInfo(code: 500, reason: "Malformed error attribute")
     }
@@ -252,7 +252,7 @@ public func ParseErrorCode(_ attr: Attribute) -> ErrorCodeInfo {
 }
 
 /// MakeLifetime creates a LIFETIME attribute (RFC 8656 Section 14.2).
-public func MakeLifetime(_ seconds: uint32) -> Attribute {
+public func MakeLifetime(seconds: uint32) -> Attribute {
     var val: [uint8] = []
     val.append(uint8((seconds >> 24) & 0xFF))
     val.append(uint8((seconds >> 16) & 0xFF))
@@ -262,7 +262,7 @@ public func MakeLifetime(_ seconds: uint32) -> Attribute {
 }
 
 /// ParseLifetime decodes a LIFETIME attribute.
-public func ParseLifetime(_ attr: Attribute) -> uint32 {
+public func ParseLifetime(attr: Attribute) -> uint32 {
     if attr.Value.count < 4 { return 0 }
     return (uint32(attr.Value[0]) << 24) |
            (uint32(attr.Value[1]) << 16) |
@@ -271,18 +271,18 @@ public func ParseLifetime(_ attr: Attribute) -> uint32 {
 }
 
 /// MakeRequestedTransport creates a REQUESTED-TRANSPORT attribute (RFC 8656 Section 14.7).
-public func MakeRequestedTransport(_ proto: uint8 = 17) -> Attribute {
+public func MakeRequestedTransport(proto: uint8 = 17) -> Attribute {
     return Attribute(type: AttrRequestedTransport, value: [proto, 0, 0, 0])
 }
 
 /// ParseRequestedTransport decodes a REQUESTED-TRANSPORT attribute.
-public func ParseRequestedTransport(_ attr: Attribute) -> uint8 {
+public func ParseRequestedTransport(attr: Attribute) -> uint8 {
     if attr.Value.isEmpty { return 17 }
     return attr.Value[0]
 }
 
 /// MakePriority creates a PRIORITY attribute (RFC 8445 Section 7.1.1).
-public func MakePriority(_ priority: uint32) -> Attribute {
+public func MakePriority(priority: uint32) -> Attribute {
     var val: [uint8] = []
     val.append(uint8((priority >> 24) & 0xFF))
     val.append(uint8((priority >> 16) & 0xFF))
@@ -292,7 +292,7 @@ public func MakePriority(_ priority: uint32) -> Attribute {
 }
 
 /// ParsePriority decodes a PRIORITY attribute.
-public func ParsePriority(_ attr: Attribute) -> uint32 {
+public func ParsePriority(attr: Attribute) -> uint32 {
     if attr.Value.count < 4 { return 0 }
     return (uint32(attr.Value[0]) << 24) |
            (uint32(attr.Value[1]) << 16) |
@@ -306,7 +306,7 @@ public func MakeUseCandidate() -> Attribute {
 }
 
 /// MakeIceControlling creates an ICE-CONTROLLING attribute (RFC 8445 Section 7.1.3).
-public func MakeIceControlling(_ tieBreaker: uint64) -> Attribute {
+public func MakeIceControlling(tieBreaker: uint64) -> Attribute {
     var val: [uint8] = []
     var shift: uint64 = 56
     while true {
@@ -318,7 +318,7 @@ public func MakeIceControlling(_ tieBreaker: uint64) -> Attribute {
 }
 
 /// MakeIceControlled creates an ICE-CONTROLLED attribute (RFC 8445 Section 7.1.4).
-public func MakeIceControlled(_ tieBreaker: uint64) -> Attribute {
+public func MakeIceControlled(tieBreaker: uint64) -> Attribute {
     var val: [uint8] = []
     var shift: uint64 = 56
     while true {
@@ -330,11 +330,11 @@ public func MakeIceControlled(_ tieBreaker: uint64) -> Attribute {
 }
 
 /// MakeData creates a DATA attribute (RFC 8656 Section 14.4).
-public func MakeData(_ data: [uint8]) -> Attribute {
+public func MakeData(data: [uint8]) -> Attribute {
     return Attribute(type: AttrData, value: data)
 }
 
 /// ParseData extracts payload from a DATA attribute.
-public func ParseData(_ attr: Attribute) -> [uint8] {
+public func ParseData(attr: Attribute) -> [uint8] {
     return attr.Value
 }

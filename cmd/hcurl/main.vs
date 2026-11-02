@@ -34,11 +34,11 @@ func usage() -> int32 {
     return 2
 }
 
-func since(_ a: time.Instant) -> float64 {
+func since(a: time.Instant) -> float64 {
     return (time.Instant.Now() - a).AsSeconds()
 }
 
-func size(_ n: int64) -> string {
+func size(n: int64) -> string {
     let units = ["B", "KB", "MB", "GB", "TB"]
     var v = float64(n)
     var u = 0
@@ -53,14 +53,14 @@ func size(_ n: int64) -> string {
     return "\(tenths / 10).\(tenths % 10) \(units[u])"
 }
 
-func rate(_ bytes: int64, _ seconds: float64) -> string {
+func rate(bytes: int64, seconds: float64) -> string {
     if seconds <= 0 {
         return "-"
     }
     return size(int64(float64(bytes) / seconds)) + "/s"
 }
 
-func ms(_ seconds: float64) -> string {
+func ms(seconds: float64) -> string {
     return "\(int64(seconds * 1000)) ms"
 }
 

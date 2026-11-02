@@ -140,7 +140,7 @@ public func NewRelayCandidate(foundation: string,
 }
 
 /// Parses an RFC 8839 / RFC 8445 candidate attribute line from an SDP description.
-public func ParseSDPLine(_ line: string) -> Candidate? {
+public func ParseSDPLine(line: string) -> Candidate? {
     var raw = line
     // Strip leading "a=" and/or "candidate:" if present
     var stripped = true

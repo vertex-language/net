@@ -26,7 +26,7 @@ public struct H2Flag {
 /// A DATA or HEADERS frame's content: without the pad length and
 /// padding a PADDED frame carries (RFC 9113 6.1, 6.2), and for HEADERS
 /// without the PRIORITY flag's dependency and weight.
-public func H2FrameContent(_ frame: H2Frame) throws -> [uint8] {
+public func H2FrameContent(frame: H2Frame) throws -> [uint8] {
     let p = frame.Payload
     var start = 0
     var end = p.count

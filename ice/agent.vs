@@ -68,14 +68,14 @@ func randomAlphanumeric(length: int) -> string {
 }
 
 /// Demultiplexes STUN packets from application media or data (RFC 7983 Section 4).
-func isStunPacket(_ raw: [uint8]) -> bool {
+func isStunPacket(raw: [uint8]) -> bool {
     if raw.count < 20 { return false }
     if (raw[0] & 0xC0) != 0 { return false }
     let cookie = (uint32(raw[4]) << 24) | (uint32(raw[5]) << 16) | (uint32(raw[6]) << 8) | uint32(raw[7])
     return cookie == 0x2112A442
 }
 
-func stringToBytes(_ s: string) -> [uint8] {
+func stringToBytes(s: string) -> [uint8] {
     var b: [uint8] = []
     for byte in s.utf8 { b.append(byte) }
     return b
@@ -98,7 +98,7 @@ public struct Agent {
     public var State: string
 
     /// Adds a remote candidate received via signaling / Trickle ICE (RFC 8838).
-    public mutating func AddRemoteCandidate(_ cand: Candidate) {
+    public mutating func AddRemoteCandidate(cand: Candidate) {
         self.RemoteCandidates.append(cand)
     }
 
@@ -241,7 +241,7 @@ public struct Agent {
     }
 
     /// Sends application payload over the nominated ICE candidate pair.
-    public func Send(_ data: [uint8]) async throws {
+    public func Send(data: [uint8]) async throws {
         if !self.HasSelectedPair {
             throw IceError.connectivityFailed
         }

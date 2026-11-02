@@ -104,13 +104,13 @@ public struct Upgrader {
 }
 
 /// Starts listening for incoming WebTransport sessions on the specified address string.
-public func Listen(_ address: string) async throws -> WebTransportListener {
+public func Listen(address: string) async throws -> WebTransportListener {
     let cfg = WebTransportConfig()
     return try await Listen(address, config: cfg)
 }
 
 /// Starts listening for incoming WebTransport sessions with custom configuration.
-public func Listen(_ address: string, config: WebTransportConfig) async throws -> WebTransportListener {
+public func Listen(address: string, config: WebTransportConfig) async throws -> WebTransportListener {
     let qListener = try await quic.Listen(address)
     return WebTransportListener(listener: qListener, config: config)
 }

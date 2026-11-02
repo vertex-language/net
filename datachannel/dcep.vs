@@ -80,7 +80,7 @@ public func BuildDcepOpen(channelType: uint8,
 }
 
 /// ParseDcepOpen parses a DCEP DATA_CHANNEL_OPEN message from bytes.
-public func ParseDcepOpen(_ data: [uint8]) throws -> DcepOpenMessage {
+public func ParseDcepOpen(data: [uint8]) throws -> DcepOpenMessage {
     if data.count < 12 {
         throw DataChannelError.invalidMessage("DCEP OPEN message too short")
     }

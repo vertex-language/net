@@ -66,7 +66,7 @@ public struct Packet {
     }
 
     /// Parse deserializes an SCTP packet from raw bytes and verifies its CRC-32c checksum.
-    public static func Parse(_ data: [uint8], verifyChecksum: bool = true) throws -> Packet {
+    public static func Parse(data: [uint8], verifyChecksum: bool = true) throws -> Packet {
         if data.count < 12 {
             throw SctpError.invalidPacket("Packet too short for SCTP common header")
         }

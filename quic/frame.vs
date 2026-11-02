@@ -108,7 +108,7 @@ public enum QuicFrame {
 }
 
 /// Serializes a single QUIC frame into wire format bytes.
-public func EncodeFrame(_ frame: QuicFrame) -> [uint8] {
+public func EncodeFrame(frame: QuicFrame) -> [uint8] {
     var buf: [uint8] = []
 
     switch frame {
@@ -258,7 +258,7 @@ public func EncodeFrame(_ frame: QuicFrame) -> [uint8] {
 }
 
 /// Serializes an array of QUIC frames into a single payload buffer.
-public func EncodeFrames(_ frames: [QuicFrame]) -> [uint8] {
+public func EncodeFrames(frames: [QuicFrame]) -> [uint8] {
     var buf: [uint8] = []
     var i = 0
     while i < frames.count {
@@ -272,7 +272,7 @@ public func EncodeFrames(_ frames: [QuicFrame]) -> [uint8] {
 }
 
 /// Parses an array of QUIC frames from a decrypted payload buffer.
-public func ParseFrames(_ data: [uint8]) throws -> [QuicFrame] {
+public func ParseFrames(data: [uint8]) throws -> [QuicFrame] {
     var frames: [QuicFrame] = []
     var offset = 0
 

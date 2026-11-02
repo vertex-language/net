@@ -10,7 +10,7 @@ package main
 
 import "net/tcp"
 
-func serve(_ listener: borrowing tcp.TcpListener, _ connections: int) async {
+func serve(listener: borrowing tcp.TcpListener, connections: int) async {
     var left = connections
     while left > 0 {
         do {
@@ -23,7 +23,7 @@ func serve(_ listener: borrowing tcp.TcpListener, _ connections: int) async {
     }
 }
 
-func echo(_ stream: consuming tcp.TcpStream) async {
+func echo(stream: consuming tcp.TcpStream) async {
     var buffer = [uint8](repeating: 0, count: 256)
     while true {
         do {
@@ -40,7 +40,7 @@ func echo(_ stream: consuming tcp.TcpStream) async {
     }
 }
 
-func talk(_ name: string, _ port: uint16, _ rounds: int) async {
+func talk(name: string, port: uint16, rounds: int) async {
     do {
         let stream = try await tcp.Connect(host: "127.0.0.1", port: port)
         var buffer = [uint8](repeating: 0, count: 256)

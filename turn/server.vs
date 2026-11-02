@@ -28,7 +28,7 @@ public struct Server {
         self.Realm = realm
     }
 
-    func findSessionIndex(_ from: udp.SocketAddress) -> int {
+    func findSessionIndex(from: udp.SocketAddress) -> int {
         let key = "\(from)"
         var i = 0
         while i < self.Sessions.count {
@@ -46,7 +46,7 @@ public struct Server {
 
     /// Handles an incoming UDP datagram to the TURN server.
     /// Returns raw response bytes to send back to client, or nil if none.
-    public mutating func HandlePacket(_ raw: [uint8], from: udp.SocketAddress) -> [uint8]? {
+    public mutating func HandlePacket(raw: [uint8], from: udp.SocketAddress) -> [uint8]? {
         guard let req = try? stun.Message.Decode(raw) else {
             return nil
         }
@@ -63,7 +63,7 @@ public struct Server {
         }
     }
 
-    mutating func handleAllocate(_ req: stun.Message, from: udp.SocketAddress) -> [uint8] {
+    mutating func handleAllocate(req: stun.Message, from: udp.SocketAddress) -> [uint8] {
         // Check for credentials
         guard let userAttr = req.GetAttribute(stun.AttributeType.Username),
               let miAttr = req.GetAttribute(stun.AttributeType.MessageIntegrity) else {
@@ -127,7 +127,7 @@ public struct Server {
         return res.Encode()
     }
 
-    mutating func handleCreatePermission(_ req: stun.Message, from: udp.SocketAddress) -> [uint8] {
+    mutating func handleCreatePermission(req: stun.Message, from: udp.SocketAddress) -> [uint8] {
         let idx = findSessionIndex(from)
         if idx < 0 {
             var err = stun.Message(type: CreatePermissionErrorResponse, transactionId: req.TransactionId)
@@ -150,7 +150,7 @@ public struct Server {
         return res.Encode()
     }
 
-    mutating func handleRefresh(_ req: stun.Message, from: udp.SocketAddress) -> [uint8] {
+    mutating func handleRefresh(req: stun.Message, from: udp.SocketAddress) -> [uint8] {
         let idx = findSessionIndex(from)
         if idx < 0 {
             var err = stun.Message(type: RefreshErrorResponse, transactionId: req.TransactionId)

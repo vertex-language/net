@@ -19,32 +19,32 @@ public struct Values: Equatable {
     }
 
     /// The first value for a key, or nil.
-    public func Get(_ key: string) -> string? {
+    public func Get(key: string) -> string? {
         for p in Pairs where p.key == key { return p.value }
         return nil
     }
 
     /// Every value for a key, in order.
-    public func All(_ key: string) -> [string] {
+    public func All(key: string) -> [string] {
         var out: [string] = []
         for p in Pairs where p.key == key { out.append(p.value) }
         return out
     }
 
-    public func Has(_ key: string) -> bool { return Get(key) != nil }
+    public func Has(key: string) -> bool { return Get(key) != nil }
 
     /// Adds a value after any the key has.
-    public mutating func Add(_ key: string, _ value: string) {
+    public mutating func Add(key: string, value: string) {
         Pairs.append((key: key, value: value))
     }
 
     /// Replaces every value for a key with one.
-    public mutating func Set(_ key: string, _ value: string) {
+    public mutating func Set(key: string, value: string) {
         Delete(key)
         Add(key, value)
     }
 
-    public mutating func Delete(_ key: string) {
+    public mutating func Delete(key: string) {
         var kept: [(key: string, value: string)] = []
         for p in Pairs where p.key != key { kept.append(p) }
         Pairs = kept
@@ -63,7 +63,7 @@ public struct Values: Equatable {
 
 /// A query string's parameters: "a=1&b=two+words" (without its '?').
 /// A pair without '=' has an empty value; empty pairs are skipped.
-public func ParseQuery(_ query: string) -> Values {
+public func ParseQuery(query: string) -> Values {
     var v = Values()
     for part in query.split(separator: "&", omittingEmptySubsequences: true) {
         let pair = string(part)

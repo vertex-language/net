@@ -12,7 +12,7 @@ public struct Ipv4: Equatable, Hashable, Comparable, CustomStringConvertible {
     /// Big-endian: 10.0.2.15 is 0x0a00_020f.
     public let Value: uint32
 
-    public init(_ a: uint8, _ b: uint8, _ c: uint8, _ d: uint8) {
+    public init(a: uint8, b: uint8, c: uint8, d: uint8) {
         Value = uint32(a) << 24 | uint32(b) << 16 | uint32(c) << 8 | uint32(d)
     }
 
@@ -21,7 +21,7 @@ public struct Ipv4: Equatable, Hashable, Comparable, CustomStringConvertible {
     }
 
     /// The four bytes at `at` in `b` (network order); 0.0.0.0 if there aren't four.
-    public init(_ b: [uint8], at: int = 0) {
+    public init(b: [uint8], at: int = 0) {
         if at < 0 || at + 4 > b.count {
             Value = 0
             return
@@ -30,7 +30,7 @@ public struct Ipv4: Equatable, Hashable, Comparable, CustomStringConvertible {
     }
 
     /// "10.0.2.15", or nil.
-    public static func Parse(_ s: string) -> Ipv4? {
+    public static func Parse(s: string) -> Ipv4? {
         let parts = s.split(separator: ".", omittingEmptySubsequences: false)
         if parts.count != 4 { return nil }
         var v: uint32 = 0
@@ -58,7 +58,7 @@ public struct Ipv4: Equatable, Hashable, Comparable, CustomStringConvertible {
     public var IsMulticast: bool { Value >> 28 == 0xe }
 
     /// The address `n` after this one.
-    public func Adding(_ n: uint32) -> Ipv4 { Ipv4(value: Value &+ n) }
+    public func Adding(n: uint32) -> Ipv4 { Ipv4(value: Value &+ n) }
 
     public static let any = Ipv4(value: 0)
     public static let broadcast = Ipv4(value: 0xffff_ffff)
@@ -73,13 +73,13 @@ public struct Prefix: Equatable, Hashable, CustomStringConvertible {
     public let Bits: int
 
     /// `bits` from 0 to 32.
-    public init(_ address: Ipv4, bits: int) {
+    public init(address: Ipv4, bits: int) {
         Address = address
         Bits = max(0, min(32, bits))
     }
 
     /// "10.0.2.0/24", or nil.
-    public static func Parse(_ s: string) -> Prefix? {
+    public static func Parse(s: string) -> Prefix? {
         guard let slash = s.firstIndex(of: "/"),
               let a = Ipv4.Parse(string(s[..<slash])),
               let n = int(string(s[s.index(after: slash)...])), n >= 0, n <= 32 else { return nil }
@@ -97,7 +97,7 @@ public struct Prefix: Equatable, Hashable, CustomStringConvertible {
     /// The network's broadcast address: 10.0.2.255 for /24.
     public var Broadcast: Ipv4 { Ipv4(value: Network.Value | ~Mask.Value) }
 
-    public func Contains(_ a: Ipv4) -> bool {
+    public func Contains(a: Ipv4) -> bool {
         a.Value & Mask.Value == Network.Value
     }
 

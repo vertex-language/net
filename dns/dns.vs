@@ -66,7 +66,7 @@ public struct Record {
     }
 
     /// An A record.
-    public static func A(_ name: string, _ ip: netip.Ipv4, ttl: uint32 = 60) -> Record {
+    public static func A(name: string, ip: netip.Ipv4, ttl: uint32 = 60) -> Record {
         Record(name: name, kind: RecordType.a, ttl: ttl, data: ip.Bytes)
     }
 
@@ -115,7 +115,7 @@ public struct Message {
     }
 
     /// nil when malformed.
-    public static func Parse(_ b: [uint8]) -> Message? {
+    public static func Parse(b: [uint8]) -> Message? {
         if b.count < 12 { return nil }
         var m = Message(id: binary.BigEndian.Uint16(b, from: 0))
         let f = binary.BigEndian.Uint16(b, from: 2)
@@ -193,7 +193,7 @@ public struct Message {
 }
 
 /// A name at `at`, following compression pointers; the offset after it.
-func readName(_ b: [uint8], _ start: int) -> (string, int)? {
+func readName(b: [uint8], start: int) -> (string, int)? {
     var labels: [string] = []
     var at = start
     var end = -1
@@ -219,7 +219,7 @@ func readName(_ b: [uint8], _ start: int) -> (string, int)? {
     return (labels.joined(separator: "."), end < 0 ? at : end)
 }
 
-func writeName(_ name: string) -> [uint8] {
+func writeName(name: string) -> [uint8] {
     var b: [uint8] = []
     for label in name.split(separator: ".") where !label.isEmpty {
         let l = [uint8](string(label).utf8).prefix(63)
@@ -260,7 +260,7 @@ public final class Forwarder {
 
     /// The response to `query` (a message's bytes): local, forwarded, or
     /// SERVFAIL when no upstream answers.
-    public func Answer(_ query: [uint8]) async -> [uint8]? {
+    public func Answer(query: [uint8]) async -> [uint8]? {
         guard let q = Message.Parse(query), !q.Response else { return nil }
         if let question = q.Questions.first, q.Questions.count == 1, let ip = Hosts[question.Name] {
             var r = q.Reply()
@@ -278,7 +278,7 @@ public final class Forwarder {
         return q.Reply(rcode: Rcode.serverFailure).Encode()
     }
 
-    func ask(_ server: netip.Ipv4, _ query: [uint8]) async -> [uint8]? {
+    func ask(server: netip.Ipv4, query: [uint8]) async -> [uint8]? {
         guard var sock = try? udp.Bind(port: 0) else { return nil }
         sock.ReadTimeoutMs = TimeoutMs
         defer { sock.Close() }

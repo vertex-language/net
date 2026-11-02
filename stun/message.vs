@@ -38,12 +38,12 @@ public struct Message {
     }
 
     /// Adds an attribute to the message.
-    public mutating func AddAttribute(_ attr: Attribute) {
+    public mutating func AddAttribute(attr: Attribute) {
         self.Attributes.append(attr)
     }
 
     /// Finds the first attribute of the given type.
-    public func GetAttribute(_ attrType: uint16) -> Attribute? {
+    public func GetAttribute(attrType: uint16) -> Attribute? {
         var i = 0
         while i < self.Attributes.count {
             if self.Attributes[i].Type == attrType {
@@ -187,7 +187,7 @@ public struct Message {
     }
 
     /// Validates the FINGERPRINT attribute in an encoded STUN packet.
-    public static func ValidateFingerprint(_ raw: [uint8]) -> bool {
+    public static func ValidateFingerprint(raw: [uint8]) -> bool {
         if raw.count < HeaderSize + 8 { return false }
         // Verify last 8 bytes form a FINGERPRINT attribute (Type 0x0080, Len 0x0004)
         let end = raw.count
@@ -212,7 +212,7 @@ public struct Message {
     }
 
     /// Decodes a STUN message from raw received network bytes.
-    public static func Decode(_ raw: [uint8]) throws -> Message {
+    public static func Decode(raw: [uint8]) throws -> Message {
         if raw.count < HeaderSize {
             throw StunError.invalidHeader("datagram shorter than 20-byte STUN header")
         }

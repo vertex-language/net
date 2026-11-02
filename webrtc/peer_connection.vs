@@ -131,7 +131,7 @@ public struct RTCPeerConnection {
     }
 
     /// Sets the local description on the peer connection.
-    public mutating func SetLocalDescription(_ desc: RTCSessionDescription) throws {
+    public mutating func SetLocalDescription(desc: RTCSessionDescription) throws {
         self.LocalDescription = desc
         self.HasLocalDescription = true
 
@@ -143,7 +143,7 @@ public struct RTCPeerConnection {
     }
 
     /// Sets the remote description on the peer connection and parses candidates/credentials.
-    public mutating func SetRemoteDescription(_ desc: RTCSessionDescription) throws {
+    public mutating func SetRemoteDescription(desc: RTCSessionDescription) throws {
         let parsed = try ParseSdp(desc.Sdp, type: desc.Type)
         self.RemoteUfrag = parsed.Ufrag
         self.RemotePwd = parsed.Pwd
@@ -164,7 +164,7 @@ public struct RTCPeerConnection {
     }
 
     /// Adds a remote Trickle ICE candidate.
-    public mutating func AddIceCandidate(_ candidate: ice.Candidate) {
+    public mutating func AddIceCandidate(candidate: ice.Candidate) {
         var agent = self.IceAgent
         agent.AddRemoteCandidate(candidate)
         self.IceAgent = agent
@@ -224,7 +224,7 @@ public struct RTCPeerConnection {
     }
 
     /// Decapsulates and decrypts a received datagram through DTLS 1.3, SCTP, and DataChannel.
-    public mutating func ProcessIncomingDatagram(_ datagram: [uint8]) throws -> [datachannel.DataChannelInboundResult] {
+    public mutating func ProcessIncomingDatagram(datagram: [uint8]) throws -> [datachannel.DataChannelInboundResult] {
         // 1. Decrypt DTLS datagram record
         var decipher = self.DtlsDecipher
         let decRecord = try decipher.Decrypt(record: datagram)

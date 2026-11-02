@@ -10,7 +10,7 @@ func base64Char(at index: int) -> uint8 {
     return 61 // '='
 }
 
-func base64DecodeVal(_ b: uint8) -> int32 {
+func base64DecodeVal(b: uint8) -> int32 {
     if b >= 65 && b <= 90 { return int32(b - 65) }
     if b >= 97 && b <= 122 { return int32(b - 97 + 26) }
     if b >= 48 && b <= 57 { return int32(b - 48 + 52) }
@@ -20,7 +20,7 @@ func base64DecodeVal(_ b: uint8) -> int32 {
 }
 
 /// Encodes binary bytes to standard Base64 string.
-public func Base64Encode(_ src: [uint8]) -> string {
+public func Base64Encode(src: [uint8]) -> string {
     var out: [uint8] = []
     let pad: uint8 = 61 // '='
     var i = 0
@@ -54,7 +54,7 @@ public func Base64Encode(_ src: [uint8]) -> string {
 }
 
 /// Decodes standard Base64 string to bytes.
-public func Base64Decode(_ s: string) throws -> [uint8] {
+public func Base64Decode(s: string) throws -> [uint8] {
     var raw: [uint8] = []
     for b in s.utf8 {
         if b != 32 && b != 10 && b != 13 && b != 9 {

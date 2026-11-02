@@ -3,13 +3,13 @@ package quic
 import "net/udp"
 
 /// Establishes an outbound QUIC connection to the specified remote address string ("host:port").
-public func Connect(_ address: string) async throws -> QuicConnection {
+public func Connect(address: string) async throws -> QuicConnection {
     let cfg = QuicConfig()
     return try await Connect(address, config: cfg)
 }
 
 /// Establishes an outbound QUIC connection to the specified remote address string and configuration.
-public func Connect(_ address: string, config: QuicConfig) async throws -> QuicConnection {
+public func Connect(address: string, config: QuicConfig) async throws -> QuicConnection {
     let parsed = try udp.SocketAddress.Parse(address)
     return try await Connect(to: parsed, config: config)
 }
@@ -62,13 +62,13 @@ public func Connect(to address: udp.SocketAddress, config: QuicConfig) async thr
 }
 
 /// Starts a QUIC listener bound to the specified string address ("host:port" or ":port").
-public func Listen(_ address: string) async throws -> QuicListener {
+public func Listen(address: string) async throws -> QuicListener {
     let cfg = QuicConfig()
     return try await Listen(address, config: cfg)
 }
 
 /// Starts a QUIC listener bound to the specified string address and configuration.
-public func Listen(_ address: string, config: QuicConfig) async throws -> QuicListener {
+public func Listen(address: string, config: QuicConfig) async throws -> QuicListener {
     let parsed = try udp.SocketAddress.Parse(address)
     return try await Listen(on: parsed, config: config)
 }

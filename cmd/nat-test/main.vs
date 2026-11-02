@@ -16,7 +16,7 @@ import (
 
 var failures = 0
 
-func check(_ ok: bool, _ what: string) {
+func check(ok: bool, what: string) {
     if ok {
         print("ok    \(what)")
     } else {
@@ -167,7 +167,7 @@ final class Guest {
     var ip = netip.Ipv4.any
     let inbox = Inbox()
 
-    init(_ gw: nat.Gateway) {
+    init(gw: nat.Gateway) {
         self.gw = gw
         let box = inbox
         Task {
@@ -175,12 +175,12 @@ final class Guest {
         }
     }
 
-    func send(_ p: wire.Ipv4Packet) async {
+    func send(p: wire.Ipv4Packet) async {
         try? await gw.Send(ether.Frame(destination: gw.Config.Mac, source: mac, etherType: ether.EtherType.ipv4, payload: p.Encode()).Encode())
     }
 
     /// The next frame, or nil after `ms`.
-    func frame(_ ms: int = 3000) async -> ether.Frame? {
+    func frame(ms: int = 3000) async -> ether.Frame? {
         var waited = 0
         while waited < ms {
             if let f = inbox.Pop() { return ether.Frame.Parse(f) }
@@ -191,7 +191,7 @@ final class Guest {
     }
 
     /// The next IPv4 packet for this guest, or nil after `ms`.
-    func next(_ ms: int = 3000) async -> wire.Ipv4Packet? {
+    func next(ms: int = 3000) async -> wire.Ipv4Packet? {
         while let fr = await frame(ms) {
             if fr.EtherType == ether.EtherType.ipv4 { return wire.Ipv4Packet.Parse(fr.Payload) }
         }
@@ -202,7 +202,7 @@ final class Guest {
 final class Inbox {
     var frames: [[uint8]] = []
     let lock = sync.Mutex()
-    func Push(_ f: [uint8]) { lock.withLock { frames.append(f) } }
+    func Push(f: [uint8]) { lock.withLock { frames.append(f) } }
     func Pop() -> [uint8]? { lock.withLock { frames.isEmpty ? nil : frames.removeFirst() } }
 }
 
@@ -278,7 +278,7 @@ func gatewayTests() async {
         }
     }
     let gwIp = netip.Ipv4(10, 0, 2, 2)
-    func seg(_ t: wire.Tcp) async {
+    func seg(t: wire.Tcp) async {
         await g.send(wire.Ipv4Packet(source: g.ip, destination: gwIp, protocol: wire.IpProtocol.tcp, payload: t.Encode(source: g.ip, destination: gwIp)))
     }
     await seg(wire.Tcp(source: 40000, destination: port, seq: 100, ack: 0, flags: wire.TcpFlags.syn, mss: 1400))

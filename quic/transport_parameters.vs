@@ -40,7 +40,7 @@ public struct TransportParameters {
 }
 
 /// Encodes transport parameters into a byte array suitable for TLS extension 0x39.
-public func EncodeTransportParameters(_ params: TransportParameters) -> [uint8] {
+public func EncodeTransportParameters(params: TransportParameters) -> [uint8] {
     var buf: [uint8] = []
 
     func writeParamVarint(id: uint64, val: uint64) {
@@ -109,7 +109,7 @@ public func EncodeTransportParameters(_ params: TransportParameters) -> [uint8] 
 }
 
 /// Decodes transport parameters from a TLS extension buffer.
-public func DecodeTransportParameters(_ data: [uint8]) throws -> TransportParameters {
+public func DecodeTransportParameters(data: [uint8]) throws -> TransportParameters {
     var params = TransportParameters()
     var offset = 0
 

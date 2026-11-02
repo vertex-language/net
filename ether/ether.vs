@@ -16,12 +16,12 @@ public struct Mac: Equatable, Hashable, CustomStringConvertible {
     public let Bytes: [uint8]
 
     /// Six bytes; anything else is the zero address.
-    public init(_ bytes: [uint8]) {
+    public init(bytes: [uint8]) {
         Bytes = bytes.count == 6 ? bytes : [0, 0, 0, 0, 0, 0]
     }
 
     /// The six bytes at `at` in `b`.
-    public init(_ b: [uint8], at: int) {
+    public init(b: [uint8], at: int) {
         Bytes = at >= 0 && at + 6 <= b.count ? Array(b[at..<(at + 6)]) : [0, 0, 0, 0, 0, 0]
     }
 
@@ -34,7 +34,7 @@ public struct Mac: Equatable, Hashable, CustomStringConvertible {
     }
 
     /// "52:54:00:12:34:56", or nil.
-    public static func Parse(_ s: string) -> Mac? {
+    public static func Parse(s: string) -> Mac? {
         let parts = s.split(separator: ":")
         if parts.count != 6 { return nil }
         var b: [uint8] = []
@@ -85,7 +85,7 @@ public struct Frame {
     }
 
     /// nil if shorter than a header.
-    public static func Parse(_ b: [uint8]) -> Frame? {
+    public static func Parse(b: [uint8]) -> Frame? {
         if b.count < 14 { return nil }
         return Frame(destination: Mac(b, at: 0), source: Mac(b, at: 6),
                      etherType: binary.BigEndian.Uint16(b, from: 12), payload: Array(b[14...]))
@@ -103,7 +103,7 @@ public struct Frame {
 /// Receive waits for the next frame for the card.
 public protocol Port: AnyObject {
     func Receive() async throws -> [uint8]
-    func Send(_ frame: [uint8]) async throws
+    func Send(frame: [uint8]) async throws
 }
 
 /// Frames waiting for a card, pushed from any thread or task and taken
@@ -127,7 +127,7 @@ public final class Queue {
     }
 
     /// Adds a frame and wakes the task in Pop.
-    public func Push(_ frame: [uint8]) {
+    public func Push(frame: [uint8]) {
         lock.withLock { frames.append(frame) }
         if let w = wake {
             var b: uint8 = 1
@@ -182,5 +182,5 @@ public final class PipeEnd: Port {
     }
 
     public func Receive() async throws -> [uint8] { await inbox.Pop() }
-    public func Send(_ frame: [uint8]) async throws { peer.Push(frame) }
+    public func Send(frame: [uint8]) async throws { peer.Push(frame) }
 }

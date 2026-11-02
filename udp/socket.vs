@@ -31,7 +31,7 @@ public struct UdpSocket {
 
 /// Binds a UDP socket on an address written as text: "127.0.0.1:8080", ":9000",
 /// or a port of 0 to request an ephemeral port from the kernel.
-public func Bind(_ address: string,
+public func Bind(address: string,
                  options: SocketOptions = .default) throws -> UdpSocket {
     let parsed = try SocketAddress.Parse(address)
     return try Bind(host: parsed.Host(), port: parsed.Port(), options: options)
@@ -120,7 +120,7 @@ public func (s: borrowing UdpSocket) Receive(into buffer: inout [uint8]) async t
 
 /// Sends a datagram to target address.
 public func (s: borrowing UdpSocket) SendTo(
-    _ data: borrowing [uint8], to address: SocketAddress) async throws -> int {
+    data: borrowing [uint8], to address: SocketAddress) async throws -> int {
     let fd = s.SocketFd
     let host = address.Host()
     let port = int32(address.Port())
@@ -144,7 +144,7 @@ public func (s: borrowing UdpSocket) SendTo(
 
 /// Sends a datagram to an address string: "127.0.0.1:9000".
 public func (s: borrowing UdpSocket) SendTo(
-    _ data: borrowing [uint8], to address: string) async throws -> int {
+    data: borrowing [uint8], to address: string) async throws -> int {
     let parsed = try SocketAddress.Parse(address)
     let n = try await s.SendTo(data, to: parsed)
     return n
@@ -152,7 +152,7 @@ public func (s: borrowing UdpSocket) SendTo(
 
 /// Sends a slice of bytes to target address.
 public func (s: borrowing UdpSocket) SendTo(
-    _ data: borrowing ArraySlice<uint8>, to address: SocketAddress) async throws -> int {
+    data: borrowing ArraySlice<uint8>, to address: SocketAddress) async throws -> int {
     let fd = s.SocketFd
     let host = address.Host()
     let port = int32(address.Port())
@@ -176,7 +176,7 @@ public func (s: borrowing UdpSocket) SendTo(
 
 /// Sends UTF-8 text to target address.
 public func (s: borrowing UdpSocket) SendText(
-    _ text: string, to address: SocketAddress) async throws -> int {
+    text: string, to address: SocketAddress) async throws -> int {
     var bytes: [uint8] = []
     for b in text.utf8 {
         bytes.append(b)
@@ -187,7 +187,7 @@ public func (s: borrowing UdpSocket) SendText(
 
 /// Sends UTF-8 text to an address string: "127.0.0.1:9000".
 public func (s: borrowing UdpSocket) SendText(
-    _ text: string, to address: string) async throws -> int {
+    text: string, to address: string) async throws -> int {
     var bytes: [uint8] = []
     for b in text.utf8 {
         bytes.append(b)
@@ -198,7 +198,7 @@ public func (s: borrowing UdpSocket) SendText(
 }
 
 /// Sends a datagram to the connected peer.
-public func (s: borrowing UdpSocket) Send(_ data: borrowing [uint8]) async throws -> int {
+public func (s: borrowing UdpSocket) Send(data: borrowing [uint8]) async throws -> int {
     let fd = s.SocketFd
     while true {
         let n = data.withUnsafeBytes { raw in
@@ -217,7 +217,7 @@ public func (s: borrowing UdpSocket) Send(_ data: borrowing [uint8]) async throw
 }
 
 /// Sends UTF-8 text to the connected peer.
-public func (s: borrowing UdpSocket) SendText(_ text: string) async throws -> int {
+public func (s: borrowing UdpSocket) SendText(text: string) async throws -> int {
     var bytes: [uint8] = []
     for b in text.utf8 {
         bytes.append(b)
@@ -229,7 +229,7 @@ public func (s: borrowing UdpSocket) SendText(_ text: string) async throws -> in
 // MARK: - Connected Mode
 
 /// Connects this UDP socket to a remote host and port.
-public func (s: inout UdpSocket) Connect(_ address: string) throws {
+public func (s: inout UdpSocket) Connect(address: string) throws {
     let parsed = try SocketAddress.Parse(address)
     try s.Connect(to: parsed)
 }
@@ -273,7 +273,7 @@ public func (s: inout UdpSocket) SetWriteTimeout(ms: int32) {
 }
 
 /// Enables or disables broadcast transmission (SO_BROADCAST).
-public func (s: borrowing UdpSocket) SetBroadcast(_ enabled: bool) throws {
+public func (s: borrowing UdpSocket) SetBroadcast(enabled: bool) throws {
     let rc = sockSetBroadcast(s.SocketFd, enabled ? 1 : 0)
     if rc < 0 {
         throw errorFor(rc, "SO_BROADCAST")
@@ -289,7 +289,7 @@ public func (s: borrowing UdpSocket) SetBufferSizes(receive: int32, send: int32)
 }
 
 /// Sets the IP Time-To-Live (TTL) field for outgoing datagrams.
-public func (s: borrowing UdpSocket) SetTTL(_ ttl: int32) throws {
+public func (s: borrowing UdpSocket) SetTTL(ttl: int32) throws {
     let rc = sockSetTtl(s.SocketFd, ttl)
     if rc < 0 {
         throw errorFor(rc, "IP_TTL")
@@ -339,7 +339,7 @@ public func (s: borrowing UdpSocket) LeaveMulticast(
 }
 
 /// Controls whether multicast packets are looped back to the local socket.
-public func (s: borrowing UdpSocket) SetMulticastLoopback(_ enabled: bool) throws {
+public func (s: borrowing UdpSocket) SetMulticastLoopback(enabled: bool) throws {
     let rc = sockSetMulticastLoopback(s.SocketFd, enabled ? 1 : 0)
     if rc < 0 {
         throw errorFor(rc, "IP_MULTICAST_LOOP")
@@ -347,7 +347,7 @@ public func (s: borrowing UdpSocket) SetMulticastLoopback(_ enabled: bool) throw
 }
 
 /// Sets the TTL for outgoing multicast packets.
-public func (s: borrowing UdpSocket) SetMulticastTTL(_ ttl: int32) throws {
+public func (s: borrowing UdpSocket) SetMulticastTTL(ttl: int32) throws {
     let rc = sockSetMulticastTtl(s.SocketFd, ttl)
     if rc < 0 {
         throw errorFor(rc, "IP_MULTICAST_TTL")

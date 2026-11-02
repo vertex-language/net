@@ -207,19 +207,19 @@ public struct WebSocketListener {
 }
 
 /// Starts listening on the specified address and returns a WebSocketListener immediately.
-public func Listen(_ address: string) throws -> WebSocketListener {
+public func Listen(address: string) throws -> WebSocketListener {
     let emptyProtos: [string] = []
     return try Listen(address, subprotocols: emptyProtos)
 }
 
 /// Starts listening on the specified address with subprotocols and returns a WebSocketListener immediately.
-public func Listen(_ address: string, subprotocols: [string]) throws -> WebSocketListener {
+public func Listen(address: string, subprotocols: [string]) throws -> WebSocketListener {
     let listener = try tcp.Listen(address)
     return WebSocketListener(listener: listener, subprotocols: subprotocols)
 }
 
 /// Starts listening on the specified address and serves connections with the handler.
-public func Listen(_ address: string, handler: @escaping (WebSocket) async throws -> Void) async throws {
+public func Listen(address: string, handler: @escaping (WebSocket) async throws -> Void) async throws {
     let wl = try Listen(address)
     defer { wl.Close() }
     try await wl.Serve(handler: handler)

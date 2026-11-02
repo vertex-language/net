@@ -62,7 +62,7 @@ public struct TcpStream {
 // MARK: - Connecting
 
 /// Connects to an address written as text: "example.com:80", "127.0.0.1:8080".
-public func Connect(_ address: string, timeoutMs: int32 = 5000) async throws -> TcpStream {
+public func Connect(address: string, timeoutMs: int32 = 5000) async throws -> TcpStream {
     let parsed = try SocketAddress.Parse(address)
     return try await Connect(host: parsed.Host(), port: parsed.Port(), timeoutMs: timeoutMs)
 }
@@ -193,7 +193,7 @@ public func (s: borrowing TcpStream) ReadToEnd(limit: int = 8 * 1024 * 1024) asy
 // The syscall is inside the closure that holds the pointer and the wait
 // is outside it: a closure cannot be suspended in, and a pointer into an
 // array must not be held across a suspension anyway.
-func (s: borrowing TcpStream) readInto(_ buffer: inout [uint8], at offset: int) async throws -> int {
+func (s: borrowing TcpStream) readInto(buffer: inout [uint8], at offset: int) async throws -> int {
     let fd = s.SocketFd
     while true {
         let n = buffer.withUnsafeMutableBytes { raw in
@@ -217,7 +217,7 @@ func (s: borrowing TcpStream) readInto(_ buffer: inout [uint8], at offset: int) 
 /// kernel. It is the write you almost always want: a socket may take
 /// fewer bytes than it was offered, and this keeps going until none are
 /// left.
-public func (s: borrowing TcpStream) Write(_ data: borrowing [uint8]) async throws {
+public func (s: borrowing TcpStream) Write(data: borrowing [uint8]) async throws {
     let fd = s.SocketFd
     var written = 0
     while written < data.count {
@@ -241,7 +241,7 @@ public func (s: borrowing TcpStream) Write(_ data: borrowing [uint8]) async thro
 public func (s: borrowing TcpStream) Flush() {}
 
 /// Writes part of a buffer: `stream.Write(buffer[0..<n])`.
-public func (s: borrowing TcpStream) Write(_ data: borrowing ArraySlice<uint8>) async throws {
+public func (s: borrowing TcpStream) Write(data: borrowing ArraySlice<uint8>) async throws {
     let fd = s.SocketFd
     var written = 0
     while written < data.count {
@@ -260,14 +260,14 @@ public func (s: borrowing TcpStream) Write(_ data: borrowing ArraySlice<uint8>) 
 }
 
 /// Writes text as UTF-8.
-public func (s: borrowing TcpStream) WriteText(_ text: string) async throws {
+public func (s: borrowing TcpStream) WriteText(text: string) async throws {
     try await s.Write(text.utf8)
 }
 
 // waitToSend is what a write does when the kernel would not take more:
 // anything but "not now" is the failure it stands for, and "not now" is
 // a wait for the socket to drain.
-func (s: borrowing TcpStream) waitToSend(_ code: int32) async throws {
+func (s: borrowing TcpStream) waitToSend(code: int32) async throws {
     if code != Code.wouldBlock {
         throw errorFor(code, "writing to \(s.PeerAddress.ToString())")
     }
@@ -298,7 +298,7 @@ public func (s: inout TcpStream) SetWriteTimeout(ms: int32) {
 /// Closes one half of the connection, leaving the other open. Shutting
 /// down writing sends the peer the end of the stream while this end goes
 /// on reading its reply, which is how a request that has no length ends.
-public func (s: borrowing TcpStream) Shutdown(_ how: ShutdownMode) throws {
+public func (s: borrowing TcpStream) Shutdown(how: ShutdownMode) throws {
     var mode: int32 = 2
     switch how {
     case .read: mode = 0
@@ -322,7 +322,7 @@ public func (s: consuming TcpStream) Close() {
 /// Sends small writes straight away rather than letting the kernel
 /// collect them (TCP_NODELAY). Worth it for request/response traffic,
 /// where waiting to fill a packet is latency for nothing.
-public func (s: borrowing TcpStream) SetNoDelay(_ enabled: bool) throws {
+public func (s: borrowing TcpStream) SetNoDelay(enabled: bool) throws {
     let rc = sockSetNodelay(s.SocketFd, enabled ? 1 : 0)
     if rc < 0 {
         throw errorFor(rc, "TCP_NODELAY on \(s.PeerAddress.ToString())")
@@ -331,7 +331,7 @@ public func (s: borrowing TcpStream) SetNoDelay(_ enabled: bool) throws {
 
 /// Sends keepalive probes on an idle connection, so that a peer that went
 /// away without closing is noticed.
-public func (s: borrowing TcpStream) SetKeepAlive(_ enabled: bool, idleSecs: int32 = 60) throws {
+public func (s: borrowing TcpStream) SetKeepAlive(enabled: bool, idleSecs: int32 = 60) throws {
     let rc = sockSetKeepalive(s.SocketFd, enabled ? 1 : 0, idleSecs)
     if rc < 0 {
         throw errorFor(rc, "SO_KEEPALIVE on \(s.PeerAddress.ToString())")

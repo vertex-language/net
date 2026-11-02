@@ -20,12 +20,12 @@ var addressTextCapacity: int { return 64 }
 // with no readiness registration -- the thread waits, which is what a
 // blocking socket would have done anyway.
 @_silgen_name("vertex_task_wait_fd")
-func waitFd(_ fd: int32, _ events: int32, _ timeoutNanos: int64) async -> int32
+func waitFd(fd: int32, events: int32, timeoutNanos: int64) async -> int32
 
 // waitReady waits until a socket can be read from or written to. It is
 // true where the socket became ready and false where the deadline passed;
 // timeoutMs of 0 waits for as long as it takes.
-func waitReady(_ fd: int32, _ events: int32, _ timeoutMs: int32) async -> bool {
+func waitReady(fd: int32, events: int32, timeoutMs: int32) async -> bool {
     var nanos: int64 = -1
     if timeoutMs > 0 {
         nanos = int64(timeoutMs) * 1_000_000
@@ -35,7 +35,7 @@ func waitReady(_ fd: int32, _ events: int32, _ timeoutMs: int32) async -> bool {
 
 // chunk is a byte count as the int32 sock.cpp takes, held inside its range: a
 // larger buffer is read or written a chunk at a time.
-func chunk(_ count: int) -> int32 {
+func chunk(count: int) -> int32 {
     return count < 0x7fff_ffff ? int32(count) : 0x7fff_ffff
 }
 

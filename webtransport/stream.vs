@@ -36,7 +36,7 @@ public struct WebTransportStream {
     }
 
     /// Writes raw byte payload to the stream.
-    public mutating func Write(_ data: [uint8]) async throws {
+    public mutating func Write(data: [uint8]) async throws {
         if self.QuicStream.IsClosed {
             throw WebTransportError.streamClosed
         }
@@ -45,14 +45,14 @@ public struct WebTransportStream {
     }
 
     /// Writes a UTF-8 string payload to the stream.
-    public mutating func WriteText(_ text: string) async throws {
+    public mutating func WriteText(text: string) async throws {
         var bytes: [uint8] = []
         for b in text.utf8 { bytes.append(b) }
         try await self.Write(bytes)
     }
 
     /// Writes payload and closes the sending side of the stream (FIN bit).
-    public mutating func WriteAndClose(_ data: [uint8]) async throws {
+    public mutating func WriteAndClose(data: [uint8]) async throws {
         if self.QuicStream.IsClosed {
             throw WebTransportError.streamClosed
         }
@@ -133,7 +133,7 @@ public struct WebTransportSendStream {
         self.HeaderSent = true
     }
 
-    public mutating func Write(_ data: [uint8]) async throws {
+    public mutating func Write(data: [uint8]) async throws {
         if self.QuicStream.IsClosed {
             throw WebTransportError.streamClosed
         }
@@ -141,13 +141,13 @@ public struct WebTransportSendStream {
         try await self.QuicStream.Write(data)
     }
 
-    public mutating func WriteText(_ text: string) async throws {
+    public mutating func WriteText(text: string) async throws {
         var bytes: [uint8] = []
         for b in text.utf8 { bytes.append(b) }
         try await self.Write(bytes)
     }
 
-    public mutating func WriteAndClose(_ data: [uint8]) async throws {
+    public mutating func WriteAndClose(data: [uint8]) async throws {
         if self.QuicStream.IsClosed {
             throw WebTransportError.streamClosed
         }

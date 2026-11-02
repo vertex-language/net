@@ -4,7 +4,7 @@ import "net/sctp"
 
 var failures = 0
 
-func check(_ cond: bool, _ msg: string) {
+func check(cond: bool, msg: string) {
     if cond {
         print("ok    \(msg)")
     } else {

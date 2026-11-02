@@ -76,7 +76,7 @@ func huffmanTable() -> [int64: uint8] {
 
 /// Decodes a Huffman-coded string literal's bytes. What is left over at
 /// the end must be under eight one bits: the start of end-of-string.
-public func HuffmanDecode(_ data: [uint8], from: int, to: int) throws -> [uint8] {
+public func HuffmanDecode(data: [uint8], from: int, to: int) throws -> [uint8] {
     let table = huffmanTable()
     var out: [uint8] = []
     var code: int64 = 0

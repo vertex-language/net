@@ -11,7 +11,7 @@ import "net/tcp"
 
 var failures = 0
 
-func check(_ ok: bool, _ what: string) {
+func check(ok: bool, what: string) {
     if ok {
         print("ok    \(what)")
     } else {
@@ -21,7 +21,7 @@ func check(_ ok: bool, _ what: string) {
 }
 
 // same reports whether a buffer holds exactly the UTF-8 of text.
-func same(_ buf: [uint8], _ text: string) -> bool {
+func same(buf: [uint8], text: string) -> bool {
     var i = 0
     for b in text.utf8 {
         if i >= buf.count || buf[i] != b {

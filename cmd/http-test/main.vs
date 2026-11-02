@@ -9,7 +9,7 @@ import (
 
 var failures = 0
 
-func check(_ ok: bool, _ what: string) {
+func check(ok: bool, what: string) {
     if ok {
         print("ok    \(what)")
     } else {
@@ -18,7 +18,7 @@ func check(_ ok: bool, _ what: string) {
     }
 }
 
-func stringContains(_ s: string, _ sub: string) -> bool {
+func stringContains(s: string, sub: string) -> bool {
     var sBytes: [uint8] = []
     for b in s.utf8 { sBytes.append(b) }
     var subBytes: [uint8] = []
@@ -413,7 +413,7 @@ func testQpackAndH3Framing() {
 }
 
 // Reads a whole ResponseStream body, or nil if it throws.
-func readAll(_ s: inout http.ResponseStream) async -> string? {
+func readAll(s: inout http.ResponseStream) async -> string? {
     var out: [uint8] = []
     var buf = [uint8](repeating: 0, count: 7) // small, to split chunks
     do {
@@ -500,7 +500,7 @@ func testStream() async {
     }
 }
 
-func hexBytes(_ s: string) -> [uint8] {
+func hexBytes(s: string) -> [uint8] {
     var out: [uint8] = []
     var hi: int = -1
     for c in s.utf8 {
@@ -513,7 +513,7 @@ func hexBytes(_ s: string) -> [uint8] {
     return out
 }
 
-func headerText(_ hs: [http.HeaderEntry]) -> string {
+func headerText(hs: [http.HeaderEntry]) -> string {
     var out = ""
     for h in hs { out += h.Key + ": " + h.Value + "\n" }
     return out

@@ -11,7 +11,7 @@ package main
 
 import "net/tcp"
 
-func handle(_ stream: consuming tcp.TcpStream) async {
+func handle(stream: consuming tcp.TcpStream) async {
     let who = stream.PeerAddress.ToString()
     print("open  \(who)")
     defer {

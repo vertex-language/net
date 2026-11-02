@@ -42,7 +42,7 @@ final class UdpRelay {
     }
     static let idleMs: int64 = 120_000
 
-    func Relay(_ gw: Gateway, _ p: wire.Ipv4Packet, _ u: wire.Udp, from mac: ether.Mac) {
+    func Relay(gw: Gateway, p: wire.Ipv4Packet, u: wire.Udp, from mac: ether.Mac) {
         let flow = UdpFlow(Guest: p.Source, GuestPort: u.SourcePort, Remote: p.Destination, RemotePort: u.DestinationPort)
         var created: UdpSession? = nil
         let s = lock.withLock { () -> UdpSession? in
@@ -67,7 +67,7 @@ final class UdpRelay {
     }
 
     /// Replies to the guest until the flow has been idle long enough.
-    func receive(_ gw: Gateway, _ s: UdpSession) async {
+    func receive(gw: Gateway, s: UdpSession) async {
         var buf = [uint8](repeating: 0, count: 65536)
         while true {
             do {

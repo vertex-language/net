@@ -14,7 +14,7 @@ import (
 /// the trailers after it are in. `from` is where the next chunk's size
 /// line starts; it moves past each complete chunk, so calling again
 /// as more arrives scans only what's new.
-func chunkedComplete(_ d: [uint8], _ from: inout int) -> bool {
+func chunkedComplete(d: [uint8], from: inout int) -> bool {
     while true {
         guard let lineEnd = crlf(d, from) else { return false }
         let size = chunkSizeAt(d, from, lineEnd)
@@ -36,7 +36,7 @@ func chunkedComplete(_ d: [uint8], _ from: inout int) -> bool {
 
 /// A chunked body's data, its chunks joined; as much as there is when
 /// it was cut short.
-public func DecodeChunked(_ d: [uint8]) -> [uint8] {
+public func DecodeChunked(d: [uint8]) -> [uint8] {
     var out: [uint8] = []
     var p = 0
     while let lineEnd = crlf(d, p) {
@@ -57,7 +57,7 @@ public func DecodeChunked(_ d: [uint8]) -> [uint8] {
 }
 
 /// The index of the next CRLF at or after i.
-func crlf(_ d: [uint8], _ i: int) -> int? {
+func crlf(d: [uint8], i: int) -> int? {
     var k = i
     while k + 1 < d.count {
         if d[k] == 13 && d[k + 1] == 10 { return k }
@@ -68,7 +68,7 @@ func crlf(_ d: [uint8], _ i: int) -> int? {
 
 /// A chunk-size line's hexadecimal size, before any extensions; -1
 /// when there are no digits.
-func chunkSizeAt(_ d: [uint8], _ start: int, _ end: int) -> int {
+func chunkSizeAt(d: [uint8], start: int, end: int) -> int {
     var n = 0
     var digits = 0
     var k = start
@@ -91,7 +91,7 @@ func chunkSizeAt(_ d: [uint8], _ start: int, _ end: int) -> int {
 /// what the server's resource holds; it then has no Content-Encoding,
 /// and its Content-Length is the decoded body's. A coding it can't
 /// undo is left as it is.
-func decodeContent(_ res: inout Response) {
+func decodeContent(res: inout Response) {
     guard let coding = res.Headers.Get("Content-Encoding") else { return }
     let name = res.Headers.lower(coding)
     var decoded: [uint8]? = nil

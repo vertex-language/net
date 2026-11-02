@@ -15,19 +15,19 @@ public struct ResponseWriter {
 
     public init() {}
 
-    public mutating func SetStatus(_ code: int32) {
+    public mutating func SetStatus(code: int32) {
         self.StatusCode = code
     }
 
-    public mutating func SetHeader(_ key: string, _ value: string) {
+    public mutating func SetHeader(key: string, value: string) {
         Headers.Set(key, value)
     }
 
-    public mutating func Write(_ data: [uint8]) {
+    public mutating func Write(data: [uint8]) {
         Body.append(contentsOf: data)
     }
 
-    public mutating func WriteText(_ s: string) {
+    public mutating func WriteText(s: string) {
         Body.append(contentsOf: s.utf8)
     }
 }
@@ -70,9 +70,9 @@ public struct ServerConfig {
 }
 
 @_silgen_name("memcpy")
-func c_memcpy(_ dest: UnsafeMutableRawPointer, _ src: UnsafeRawPointer, _ n: int) -> UnsafeMutableRawPointer
+func c_memcpy(dest: UnsafeMutableRawPointer, src: UnsafeRawPointer, n: int) -> UnsafeMutableRawPointer
 
-func sliceBytes(_ src: [uint8], from: int, count: int) -> [uint8] {
+func sliceBytes(src: [uint8], from: int, count: int) -> [uint8] {
     if count <= 0 { return [] }
     var dst = [uint8](repeating: 0, count: count)
     dst.withUnsafeMutableBytes { dp in
@@ -83,7 +83,7 @@ func sliceBytes(_ src: [uint8], from: int, count: int) -> [uint8] {
     return dst
 }
 
-func appendBytes(_ dst: inout [uint8], _ src: [uint8], from: int, count: int) {
+func appendBytes(dst: inout [uint8], src: [uint8], from: int, count: int) {
     if count <= 0 { return }
     let orig = dst.count
     dst.append(contentsOf: [uint8](repeating: 0, count: count))
@@ -117,7 +117,7 @@ let bytesConnClose: [uint8] = [67, 111, 110, 110, 101, 99, 116, 105, 111, 110, 5
 
 // appendDecimal writes n in ASCII onto the end of out: the digits of a
 // Content-Length, without a String on the way.
-func appendDecimal(_ out: inout [uint8], _ n: int) {
+func appendDecimal(out: inout [uint8], n: int) {
     if n < 10 {
         out.append(uint8(48 + n))
         return
@@ -140,7 +140,7 @@ func appendDecimal(_ out: inout [uint8], _ n: int) {
 // and body onto out, as the bytes that go on the wire. keepAlive is what
 // the connection decided, unless a Connection header of the handler's
 // says otherwise, in which case it is updated.
-func encodeResponse(_ out: inout [uint8], _ writer: borrowing ResponseWriter, keepAlive: inout bool) {
+func encodeResponse(out: inout [uint8], writer: borrowing ResponseWriter, keepAlive: inout bool) {
     if writer.StatusCode == 200 {
         out.append(contentsOf: bytesStatus200)
     } else {
@@ -186,7 +186,7 @@ func encodeResponse(_ out: inout [uint8], _ writer: borrowing ResponseWriter, ke
 // wantsKeepAlive is whether the connection stays open after this
 // request: HTTP/1.1 unless the client says close, HTTP/1.0 only if it
 // asks.
-func wantsKeepAlive(_ req: borrowing Request) -> bool {
+func wantsKeepAlive(req: borrowing Request) -> bool {
     // A request the parser read says which span is Connection; one built
     // some other way is looked up.
     if req.connectionSpan >= 0 {
@@ -490,7 +490,7 @@ public func ReadRequestTls(from conn: inout tls.Conn) async throws -> Request {
 }
 
 /// Writes an HTTP response to an active TLS connection.
-public func WriteResponseTls(_ res: Response, to conn: inout tls.Conn) async throws {
+public func WriteResponseTls(res: Response, to conn: inout tls.Conn) async throws {
     try await conn.WriteText(res.HeaderText())
     if !res.Body.isEmpty {
         try await conn.Write(res.Body)
@@ -544,7 +544,7 @@ public struct HttpListener {
 }
 
 /// Starts listening on the specified address and returns an HttpListener immediately.
-public func Listen(_ address: string) throws -> HttpListener {
+public func Listen(address: string) throws -> HttpListener {
     var opts = tcp.ListenerOptions()
     opts.Backlog = 1024
     let listener = try tcp.Listen(address, options: opts)
@@ -552,7 +552,7 @@ public func Listen(_ address: string) throws -> HttpListener {
 }
 
 /// Starts listening on the specified address with server configuration and returns an HttpListener immediately.
-public func Listen(_ address: string, config: ServerConfig) throws -> HttpListener {
+public func Listen(address: string, config: ServerConfig) throws -> HttpListener {
     var opts = tcp.ListenerOptions()
     opts.Backlog = 1024
     let listener = try tcp.Listen(address, options: opts)
@@ -560,7 +560,7 @@ public func Listen(_ address: string, config: ServerConfig) throws -> HttpListen
 }
 
 /// Starts listening on the specified address and serves HTTP requests using the provided handler.
-public func Listen(_ address: string, handler: @escaping (Request) async throws -> ResponseWriter) async throws {
+public func Listen(address: string, handler: @escaping (Request) async throws -> ResponseWriter) async throws {
     let hl = try Listen(address)
     defer { hl.Close() }
     try await hl.Serve(handler: handler)

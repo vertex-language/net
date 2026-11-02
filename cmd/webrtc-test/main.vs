@@ -10,7 +10,7 @@ import (
 
 var failures = 0
 
-func check(_ cond: bool, _ msg: string) {
+func check(cond: bool, msg: string) {
     if cond {
         print("ok    \(msg)")
     } else {
@@ -19,7 +19,7 @@ func check(_ cond: bool, _ msg: string) {
     }
 }
 
-func stringContains(_ s: string, _ substr: string) -> bool {
+func stringContains(s: string, substr: string) -> bool {
     var sBytes: [uint8] = []
     for b in s.utf8 { sBytes.append(b) }
     var subBytes: [uint8] = []

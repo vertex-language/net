@@ -72,11 +72,11 @@ final class TcpRelay {
         sessions = [:]
     }
 
-    func session(_ f: TcpFlow) -> TcpSession? { lock.withLock { sessions[f] } }
-    func remove(_ f: TcpFlow) { lock.withLock { _ = sessions.removeValue(forKey: f) } }
+    func session(f: TcpFlow) -> TcpSession? { lock.withLock { sessions[f] } }
+    func remove(f: TcpFlow) { lock.withLock { _ = sessions.removeValue(forKey: f) } }
 
     /// One segment to the guest. Call with the session locked (or before it is shared).
-    func send(_ gw: Gateway, _ s: TcpSession, _ flags: uint8, _ payload: [uint8] = [], seq: uint32? = nil, mss: uint16? = nil) {
+    func send(gw: Gateway, s: TcpSession, flags: uint8, payload: [uint8] = [], seq: uint32? = nil, mss: uint16? = nil) {
         let t = wire.Tcp(source: s.flow.RemotePort, destination: s.flow.GuestPort, seq: seq ?? s.seq, ack: s.guestSeq,
                          flags: flags, window: 65535, mss: mss, payload: payload)
         gw.deliver(wire.Ipv4Packet(source: s.flow.Remote, destination: s.flow.Guest, protocol: wire.IpProtocol.tcp,
@@ -84,7 +84,7 @@ final class TcpRelay {
     }
 
     /// Sends what the guest's window has room for. Session locked.
-    func pump(_ gw: Gateway, _ s: TcpSession) {
+    func pump(gw: Gateway, s: TcpSession) {
         while s.inFlight < s.unacked.count {
             let room = s.window - s.inFlight
             if room <= 0 { return }
@@ -97,14 +97,14 @@ final class TcpRelay {
     }
 
     /// Sends the first unacknowledged segment again. Session locked.
-    func retransmit(_ gw: Gateway, _ s: TcpSession) {
+    func retransmit(gw: Gateway, s: TcpSession) {
         if s.unacked.isEmpty { return }
         let n = min(s.mss, s.unacked.count)
         send(gw, s, wire.TcpFlags.ack | wire.TcpFlags.psh, Array(s.unacked[0..<n]), seq: s.acked)
     }
 
     /// A reset for a segment that belongs to no connection.
-    func reset(_ gw: Gateway, _ p: wire.Ipv4Packet, _ t: wire.Tcp, mac: ether.Mac) {
+    func reset(gw: Gateway, p: wire.Ipv4Packet, t: wire.Tcp, mac: ether.Mac) {
         let ack = t.Has(wire.TcpFlags.ack)
         let r = wire.Tcp(source: t.DestinationPort, destination: t.SourcePort, seq: ack ? t.Ack : 0,
                          ack: t.Seq &+ t.Length, flags: ack ? wire.TcpFlags.rst : wire.TcpFlags.rst | wire.TcpFlags.ack, window: 0)
@@ -112,7 +112,7 @@ final class TcpRelay {
                                    payload: r.Encode(source: p.Destination, destination: p.Source)), to: mac)
     }
 
-    func Segment(_ gw: Gateway, _ p: wire.Ipv4Packet, _ t: wire.Tcp, from mac: ether.Mac) {
+    func Segment(gw: Gateway, p: wire.Ipv4Packet, t: wire.Tcp, from mac: ether.Mac) {
         let flow = TcpFlow(Guest: p.Source, GuestPort: t.SourcePort, Remote: p.Destination, RemotePort: t.DestinationPort)
 
         // A new connection: open the host's, then answer the SYN.
@@ -172,7 +172,7 @@ final class TcpRelay {
         if finished { close(s) }
     }
 
-    func connect(_ gw: Gateway, _ s: TcpSession, _ host: netip.Ipv4) {
+    func connect(gw: Gateway, s: TcpSession, host: netip.Ipv4) {
         Task {
             guard let stream = try? await tcp.Connect(host: host.description, port: s.flow.RemotePort) else {
                 // Refused or unreachable: the guest's SYN is reset.
@@ -194,7 +194,7 @@ final class TcpRelay {
 
     /// Retransmits what the guest is slow to acknowledge; gives up on a
     /// guest that has acknowledged nothing for a minute.
-    func watch(_ gw: Gateway, _ s: TcpSession) async {
+    func watch(gw: Gateway, s: TcpSession) async {
         var lastAcked: uint32 = 0
         var idle = 0
         while true {
@@ -218,7 +218,7 @@ final class TcpRelay {
     }
 
     /// The host's data to the guest, then its FIN.
-    func read(_ gw: Gateway, _ s: TcpSession, _ stream: tcp.TcpStream) async {
+    func read(gw: Gateway, s: TcpSession, stream: tcp.TcpStream) async {
         var buf = [uint8](repeating: 0, count: 16384)
         while true {
             // Hold off while the guest has plenty still to take.
@@ -254,7 +254,7 @@ final class TcpRelay {
 
     /// Writes what the guest sent to the host socket, in order, one write
     /// at a time; the guest's FIN, after its data, half-closes the socket.
-    func drain(_ s: TcpSession) {
+    func drain(s: TcpSession) {
         let start = s.lock.withLock { () -> bool in
             if s.writing || s.outbox.isEmpty { return false }
             s.writing = true
@@ -282,7 +282,7 @@ final class TcpRelay {
         }
     }
 
-    func close(_ s: TcpSession) {
+    func close(s: TcpSession) {
         let st = s.lock.withLock { () -> tcp.TcpStream? in
             if s.closed { return nil }
             s.closed = true

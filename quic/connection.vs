@@ -145,7 +145,7 @@ public struct QuicConnection {
     }
 
     /// Transmits an unreliable application datagram (RFC 9221).
-    public mutating func SendDatagram(_ data: [uint8]) async throws {
+    public mutating func SendDatagram(data: [uint8]) async throws {
         if !self.Config.EnableDatagrams {
             throw QuicError.transport(code: TransportErrorCode.ProtocolViolation, msg: "Datagrams disabled")
         }
@@ -242,7 +242,7 @@ public struct QuicConnection {
     }
 
     /// Processes an inbound raw protected UDP datagram.
-    public mutating func ProcessInboundDatagram(_ raw: [uint8]) throws -> [QuicFrame] {
+    public mutating func ProcessInboundDatagram(raw: [uint8]) throws -> [QuicFrame] {
         if raw.isEmpty {
             return []
         }

@@ -118,7 +118,7 @@ public struct Association {
     }
 
     /// HandlePacket processes an incoming serialized SCTP packet and returns response bytes to send (if any).
-    public mutating func HandlePacket(_ data: [uint8]) throws -> [uint8] {
+    public mutating func HandlePacket(data: [uint8]) throws -> [uint8] {
         let pkt = try Packet.Parse(data)
         var responseChunks: [RawChunk] = []
 

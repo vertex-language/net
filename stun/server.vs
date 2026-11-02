@@ -5,7 +5,7 @@ import "net/udp"
 /// HandleBindingRequest inspects a raw UDP datagram. If it is a valid STUN Binding Request,
 /// it generates a corresponding Binding Success Response containing an XOR-MAPPED-ADDRESS
 /// attribute with the sender's reflexive address and a valid FINGERPRINT.
-public func HandleBindingRequest(_ raw: [uint8], sender: udp.SocketAddress) -> [uint8]? {
+public func HandleBindingRequest(raw: [uint8], sender: udp.SocketAddress) -> [uint8]? {
     guard let req = try? Message.Decode(raw) else {
         return nil
     }

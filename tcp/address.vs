@@ -13,7 +13,7 @@ public enum SocketAddress {
     /// Reads "127.0.0.1:8080", ":8080" (any interface), "localhost:80", or
     /// "[::1]:9000". A bare IPv6 address must be bracketed, so that its
     /// last group is not read as a port.
-    public static func Parse(_ text: string) throws -> SocketAddress {
+    public static func Parse(text: string) throws -> SocketAddress {
         var bytes: [uint8] = []
         for b in text.utf8 {
             bytes.append(b)
@@ -65,7 +65,7 @@ public enum SocketAddress {
     }
 
     /// An IPv4 address from its four octets.
-    public static func IPv4(_ a: uint8, _ b: uint8, _ c: uint8, _ d: uint8,
+    public static func IPv4(a: uint8, b: uint8, c: uint8, d: uint8,
                             port: uint16) -> SocketAddress {
         return .v4(ip: "\(a).\(b).\(c).\(d)", port: port)
     }
@@ -149,7 +149,7 @@ public func Resolve(host: string, port: uint16) throws -> [SocketAddress] {
 
 // parsePort reads the decimal port running from start to the end of
 // bytes, or nil where it is empty, not all digits, or above 65535.
-func parsePort(_ bytes: [uint8], from start: int) -> uint16? {
+func parsePort(bytes: [uint8], from start: int) -> uint16? {
     if start >= bytes.count {
         return nil
     }
@@ -171,7 +171,7 @@ func parsePort(_ bytes: [uint8], from start: int) -> uint16? {
 
 // asciiText is bytes[start..<end] as a string. Addresses and host names
 // are ASCII, which is all this reads.
-func asciiText(_ bytes: [uint8], from start: int, to end: int) -> string {
+func asciiText(bytes: [uint8], from start: int, to end: int) -> string {
     var chars: [CChar] = []
     var i = start
     while i < end {

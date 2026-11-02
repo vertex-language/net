@@ -5,14 +5,14 @@ import (
     "unicode/utf8"
 )
 
-func asciiString(_ bytes: [uint8], from: int, to: int) -> string {
+func asciiString(bytes: [uint8], from: int, to: int) -> string {
     if from >= to || from >= bytes.count {
         return ""
     }
     return utf8.Decode(bytes, from, to)
 }
 
-func trimSpaces(_ s: string) -> string {
+func trimSpaces(s: string) -> string {
     var bytes: [uint8] = []
     for b in s.utf8 { bytes.append(b) }
     var start = 0
@@ -26,7 +26,7 @@ func trimSpaces(_ s: string) -> string {
     return asciiString(bytes, from: start, to: end)
 }
 
-func parseContentLength(_ val: string) -> int {
+func parseContentLength(val: string) -> int {
     var n = 0
     for b in val.utf8 {
         if b >= 48 && b <= 57 {
@@ -39,7 +39,7 @@ func parseContentLength(_ val: string) -> int {
 // headerNameIs reports whether the count bytes at raw[at...] spell name,
 // ignoring case, compared where they lie. (`name.utf8` would make an array
 // of name's bytes first: vsc does not use the view in place yet.)
-func headerNameIs(_ raw: [uint8], _ at: int, _ count: int, _ name: string) -> bool {
+func headerNameIs(raw: [uint8], at: int, count: int, name: string) -> bool {
     if at + count > raw.count {
         return false
     }
@@ -117,12 +117,12 @@ public struct Request {
     }
 
     /// FindHeaderEnd finds the start index of \r\n\r\n in raw bytes, or -1 if not found.
-    public static func FindHeaderEnd(_ raw: [uint8], from: int = 0) -> int {
+    public static func FindHeaderEnd(raw: [uint8], from: int = 0) -> int {
         return FindHeaderEnd(raw, from: from, to: raw.count)
     }
 
     /// FindHeaderEnd finds the start index of \r\n\r\n in raw[from..<to], or -1 if not found.
-    public static func FindHeaderEnd(_ raw: [uint8], from: int, to: int) -> int {
+    public static func FindHeaderEnd(raw: [uint8], from: int, to: int) -> int {
         var j = from
         if j < 0 { j = 0 }
         let end = to < raw.count ? to : raw.count
@@ -138,7 +138,7 @@ public struct Request {
     }
 
     /// ParseHeaders parses a Request's method, URL, proto, headers, and any initial body bytes up to headerEnd.
-    public static func ParseHeaders(_ raw: [uint8], headerEnd: int) throws -> Request {
+    public static func ParseHeaders(raw: [uint8], headerEnd: int) throws -> Request {
         var req = try ParseHeaders(raw, from: 0, headerEnd: headerEnd)
         let bodyStart = headerEnd + 4
         if bodyStart < raw.count {
@@ -152,7 +152,7 @@ public struct Request {
     /// the Request they describe. The bytes after the blank line are not
     /// looked at: a server that reads into one buffer per connection
     /// keeps the body, and the next request, where they are.
-    public static func ParseHeaders(_ raw: [uint8], from: int, headerEnd: int) throws -> Request {
+    public static func ParseHeaders(raw: [uint8], from: int, headerEnd: int) throws -> Request {
         var req = Request()
         try parse(into: &req, raw, from: from, headerEnd: headerEnd)
         return req
@@ -164,7 +164,7 @@ public struct Request {
     /// per connection rather than once per request. Every field the parse
     /// sets is reset first; a handler that kept the previous request has
     /// its own copy, since the arrays are copy-on-write.
-    static func parse(into req: inout Request, _ raw: [uint8], from: int, headerEnd: int) throws {
+    static func parse(into req: inout Request, raw: [uint8], from: int, headerEnd: int) throws {
         var i = from
         while i < headerEnd && (raw[i] == 32 || raw[i] == 13 || raw[i] == 10) { i += 1 }
         let mStart = i

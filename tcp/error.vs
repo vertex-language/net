@@ -52,7 +52,7 @@ public enum TcpError: Error {
 // Code.wouldBlock never reaches here: it is not a failure, it is a caller
 // that has to wait for the socket and ask again, and every loop in this
 // package handles it before it gets this far.
-func errorFor(_ code: int32, _ context: string) -> TcpError {
+func errorFor(code: int32, context: string) -> TcpError {
     switch code {
     case Code.refused: return .connectionRefused(context)
     case Code.timedOut: return .timedOut(context)

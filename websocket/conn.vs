@@ -56,7 +56,7 @@ public struct WebSocket {
         self.readBuffer = []
     }
 
-    mutating func writeBytes(_ bytes: [uint8]) async throws {
+    mutating func writeBytes(bytes: [uint8]) async throws {
         if self.IsClosed {
             throw WebSocketError.connectionClosed
         }
@@ -67,7 +67,7 @@ public struct WebSocket {
         }
     }
 
-    mutating func readInto(_ buf: inout [uint8]) async throws -> int {
+    mutating func readInto(buf: inout [uint8]) async throws -> int {
         if self.IsClosed {
             return 0
         }
@@ -79,7 +79,7 @@ public struct WebSocket {
     }
 
     /// Sends a Text message (masked if client).
-    public mutating func SendText(_ text: string) async throws {
+    public mutating func SendText(text: string) async throws {
         var bytes: [uint8] = []
         for b in text.utf8 {
             bytes.append(b)
@@ -89,7 +89,7 @@ public struct WebSocket {
     }
 
     /// Sends a Binary message (masked if client).
-    public mutating func SendBinary(_ data: [uint8]) async throws {
+    public mutating func SendBinary(data: [uint8]) async throws {
         let frame = BuildFrame(fin: true, opcode: Opcode.Binary, masked: self.IsClient, payload: data)
         try await self.writeBytes(frame)
     }
@@ -101,7 +101,7 @@ public struct WebSocket {
     }
 
     /// Sends a Ping control frame (max 125 bytes payload).
-    public mutating func SendPing(_ data: [uint8]) async throws {
+    public mutating func SendPing(data: [uint8]) async throws {
         if data.count > 125 {
             throw WebSocketError.protocolError("Ping payload must be <= 125 bytes")
         }
@@ -116,7 +116,7 @@ public struct WebSocket {
     }
 
     /// Sends a Pong control frame echoing ping data.
-    public mutating func SendPong(_ data: [uint8]) async throws {
+    public mutating func SendPong(data: [uint8]) async throws {
         if data.count > 125 {
             throw WebSocketError.protocolError("Pong payload must be <= 125 bytes")
         }

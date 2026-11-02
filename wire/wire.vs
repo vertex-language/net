@@ -26,7 +26,7 @@ public enum IpProtocol {
 
 /// The 16-bit one's-complement sum of RFC 1071, folded and inverted,
 /// over `data` after `initial` (a pseudo-header's sum).
-public func Checksum(_ data: [uint8], initial: uint32 = 0) -> uint16 {
+public func Checksum(data: [uint8], initial: uint32 = 0) -> uint16 {
     var sum = initial
     var i = 0
     while i + 1 < data.count {
@@ -66,7 +66,7 @@ public struct Arp {
     }
 
     /// nil unless Ethernet/IPv4 and long enough.
-    public static func Parse(_ b: [uint8]) -> Arp? {
+    public static func Parse(b: [uint8]) -> Arp? {
         if b.count < 28 || binary.BigEndian.Uint16(b, from: 0) != 1 || binary.BigEndian.Uint16(b, from: 2) != 0x0800
             || b[4] != 6 || b[5] != 4 { return nil }
         return Arp(operation: binary.BigEndian.Uint16(b, from: 6), senderMac: ether.Mac(b, at: 8),
@@ -81,7 +81,7 @@ public struct Arp {
     }
 
     /// The reply saying `mac` has the address this request asks for.
-    public func Answer(_ mac: ether.Mac) -> Arp {
+    public func Answer(mac: ether.Mac) -> Arp {
         Arp(operation: Arp.reply, senderMac: mac, senderIp: TargetIp, targetMac: SenderMac, targetIp: SenderIp)
     }
 }
@@ -115,7 +115,7 @@ public struct Ipv4Packet {
     /// nil unless version 4 with a sane header and length; a frame's
     /// padding past the total length is dropped. The header checksum is
     /// not checked (a virtual card doesn't corrupt).
-    public static func Parse(_ b: [uint8]) -> Ipv4Packet? {
+    public static func Parse(b: [uint8]) -> Ipv4Packet? {
         if b.count < 20 || b[0] >> 4 != 4 { return nil }
         let ihl = int(b[0] & 0x0f) * 4
         let total = int(binary.BigEndian.Uint16(b, from: 2))
@@ -173,7 +173,7 @@ public struct Icmp {
         Data = data
     }
 
-    public static func Parse(_ b: [uint8]) -> Icmp? {
+    public static func Parse(b: [uint8]) -> Icmp? {
         if b.count < 8 { return nil }
         return Icmp(kind: b[0], code: b[1], rest: Array(b[4..<8]), data: Array(b[8...]))
     }
@@ -205,7 +205,7 @@ public struct Udp {
     }
 
     /// nil if the length field doesn't fit; the checksum is not checked.
-    public static func Parse(_ b: [uint8]) -> Udp? {
+    public static func Parse(b: [uint8]) -> Udp? {
         if b.count < 8 { return nil }
         let len = int(binary.BigEndian.Uint16(b, from: 4))
         if len < 8 || len > b.count { return nil }
@@ -264,7 +264,7 @@ public struct Tcp {
         Payload = payload
     }
 
-    public func Has(_ flag: uint8) -> bool { Flags & flag != 0 }
+    public func Has(flag: uint8) -> bool { Flags & flag != 0 }
 
     /// The sequence space this segment takes: its data, plus one each for SYN and FIN.
     public var Length: uint32 {
@@ -272,7 +272,7 @@ public struct Tcp {
     }
 
     /// nil if the header doesn't fit; the checksum is not checked.
-    public static func Parse(_ b: [uint8]) -> Tcp? {
+    public static func Parse(b: [uint8]) -> Tcp? {
         if b.count < 20 { return nil }
         let off = int(b[12] >> 4) * 4
         if off < 20 || off > b.count { return nil }

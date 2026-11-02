@@ -13,9 +13,9 @@ package unix
 
 // The runtime's wait; see net/tcp's sock.vs.
 @_silgen_name("vertex_task_wait_fd")
-func waitFd(_ fd: int32, _ events: int32, _ timeoutNanos: int64) async -> int32
+func waitFd(fd: int32, events: int32, timeoutNanos: int64) async -> int32
 
-func waitReady(_ fd: int32, _ events: int32, _ timeoutMs: int32) async -> bool {
+func waitReady(fd: int32, events: int32, timeoutMs: int32) async -> bool {
     var nanos: int64 = -1
     if timeoutMs > 0 {
         nanos = int64(timeoutMs) * 1_000_000
@@ -23,7 +23,7 @@ func waitReady(_ fd: int32, _ events: int32, _ timeoutMs: int32) async -> bool {
     return (await waitFd(fd, events, nanos)) == 1
 }
 
-func chunk(_ count: int) -> int32 {
+func chunk(count: int) -> int32 {
     count < 0x7fff_ffff ? int32(count) : 0x7fff_ffff
 }
 
@@ -61,7 +61,7 @@ public enum UnixError: Error {
     }
 }
 
-func errorFor(_ code: int32, _ context: string) -> UnixError {
+func errorFor(code: int32, context: string) -> UnixError {
     switch code {
     case Code.refused: return .connectionRefused(context)
     case Code.notFound: return .notFound(context)
@@ -101,7 +101,7 @@ public struct UnixStream {
 }
 
 /// Connects to the socket at `path`.
-public func Connect(_ path: string, timeoutMs: int32 = 5000) async throws -> UnixStream {
+public func Connect(path: string, timeoutMs: int32 = 5000) async throws -> UnixStream {
     let fd = path.withCString { p in unixConnectBegin(p) }
     if fd < 0 {
         throw errorFor(fd, path)
@@ -140,7 +140,7 @@ public func (s: borrowing UnixStream) ReadFull(into buffer: inout [uint8]) async
     }
 }
 
-func (s: borrowing UnixStream) readInto(_ buffer: inout [uint8], at offset: int) async throws -> int {
+func (s: borrowing UnixStream) readInto(buffer: inout [uint8], at offset: int) async throws -> int {
     let fd = s.SocketFd
     while true {
         let n = buffer.withUnsafeMutableBytes { raw in
@@ -159,7 +159,7 @@ func (s: borrowing UnixStream) readInto(_ buffer: inout [uint8], at offset: int)
 }
 
 /// Writes every byte.
-public func (s: borrowing UnixStream) Write(_ data: borrowing [uint8]) async throws {
+public func (s: borrowing UnixStream) Write(data: borrowing [uint8]) async throws {
     let fd = s.SocketFd
     var written = 0
     while written < data.count {
@@ -180,7 +180,7 @@ public func (s: borrowing UnixStream) Write(_ data: borrowing [uint8]) async thr
     }
 }
 
-public func (s: borrowing UnixStream) Shutdown(_ how: ShutdownMode) throws {
+public func (s: borrowing UnixStream) Shutdown(how: ShutdownMode) throws {
     let h: int32
     switch how {
     case .read: h = 0
@@ -210,7 +210,7 @@ public struct UnixListener {
 
 /// Listens at `path`. The path must be free: `removeStale` first deletes
 /// a socket file a previous listener left behind.
-public func Listen(_ path: string, backlog: int32 = 16, removeStale: bool = false) throws -> UnixListener {
+public func Listen(path: string, backlog: int32 = 16, removeStale: bool = false) throws -> UnixListener {
     if removeStale {
         _ = path.withCString { p in unixUnlink(p) }
     }

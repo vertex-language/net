@@ -8,7 +8,7 @@ import (
 
 var failures = 0
 
-func check(_ ok: bool, _ what: string) {
+func check(ok: bool, what: string) {
     if ok {
         print("ok    \(what)")
     } else {
@@ -17,7 +17,7 @@ func check(_ ok: bool, _ what: string) {
     }
 }
 
-func same(_ buf: [uint8], _ count: int, _ text: string) -> bool {
+func same(buf: [uint8], count: int, text: string) -> bool {
     var i = 0
     for b in text.utf8 {
         if i >= count || buf[i] != b {
@@ -28,7 +28,7 @@ func same(_ buf: [uint8], _ count: int, _ text: string) -> bool {
     return i == count
 }
 
-func sameExact(_ buf: [uint8], _ text: string) -> bool {
+func sameExact(buf: [uint8], text: string) -> bool {
     return same(buf, buf.count, text)
 }
 

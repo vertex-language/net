@@ -85,7 +85,7 @@ public struct LossDetector {
         self.LostPackets = []
     }
 
-    public mutating func OnPacketSent(_ packet: SentPacket) {
+    public mutating func OnPacketSent(packet: SentPacket) {
         self.InFlight.append(packet)
     }
 

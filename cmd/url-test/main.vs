@@ -4,7 +4,7 @@ import "net/url"
 
 var failures = 0
 
-func check(_ ok: bool, _ what: string) {
+func check(ok: bool, what: string) {
     if ok {
         print("ok    \(what)")
     } else {
@@ -13,7 +13,7 @@ func check(_ ok: bool, _ what: string) {
     }
 }
 
-func parses(_ text: string, _ want: string) {
+func parses(text: string, want: string) {
     do {
         let got = try url.Parse(text).String()
         check(got == want, "\(text) parses as \(want)" + (got == want ? "" : " (got \(got))"))
@@ -22,7 +22,7 @@ func parses(_ text: string, _ want: string) {
     }
 }
 
-func resolves(_ ref: string, _ base: string, _ want: string) {
+func resolves(ref: string, base: string, want: string) {
     do {
         let got = try url.Parse(base).Resolve(ref).String()
         check(got == want, "\(ref) against \(base) is \(want)" + (got == want ? "" : " (got \(got))"))

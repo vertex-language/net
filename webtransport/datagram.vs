@@ -29,7 +29,7 @@ public func EncodeDatagram(sessionId: uint64, payload: [uint8]) -> [uint8] {
 }
 
 /// Decodes an RFC 9297 WebTransport datagram into its Session ID and inner payload.
-public func DecodeDatagram(_ raw: [uint8]) throws -> DecodedDatagram {
+public func DecodeDatagram(raw: [uint8]) throws -> DecodedDatagram {
     if raw.isEmpty {
         throw WebTransportError.protocolViolation("Empty datagram")
     }

@@ -21,7 +21,7 @@ public struct DecodedVarint {
 }
 
 /// Returns the number of bytes required to encode the given variable-length integer.
-public func VarintLen(_ val: uint64) -> int {
+public func VarintLen(val: uint64) -> int {
     if val <= 63 {
         return 1
     } else if val <= 16383 {
@@ -34,7 +34,7 @@ public func VarintLen(_ val: uint64) -> int {
 }
 
 /// Encodes an integer into RFC 9000 variable-length format.
-public func EncodeVarint(_ val: uint64) -> [uint8] {
+public func EncodeVarint(val: uint64) -> [uint8] {
     if val <= 63 {
         return [uint8(val)]
     } else if val <= 16383 {
@@ -64,7 +64,7 @@ public func EncodeVarint(_ val: uint64) -> [uint8] {
 }
 
 /// Decodes an RFC 9000 variable-length integer from a byte buffer at the given offset.
-public func DecodeVarint(_ data: [uint8], offset: int = 0) throws -> DecodedVarint {
+public func DecodeVarint(data: [uint8], offset: int = 0) throws -> DecodedVarint {
     if offset >= data.count {
         throw QuicError.transport(code: 0x01, msg: "Unexpected EOF while reading varint")
     }

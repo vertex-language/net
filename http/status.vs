@@ -19,7 +19,7 @@ public struct Status {
     public static let ServiceUnavailable: int32 = 503
 }
 
-public func StatusText(_ code: int32) -> string {
+public func StatusText(code: int32) -> string {
     switch code {
     case 200: return "OK"
     case 201: return "Created"

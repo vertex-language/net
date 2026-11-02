@@ -162,7 +162,7 @@ public struct QpackEncoder {
     }
 
     /// Encodes a list of headers into a QPACK Field Section prefix + field lines.
-    public func EncodeHeaders(_ headers: [HeaderEntry]) -> [uint8] {
+    public func EncodeHeaders(headers: [HeaderEntry]) -> [uint8] {
         // Section Prefix: Required Insert Count (0) and Delta Base (0) -> [0x00, 0x00]
         var out: [uint8] = [0x00, 0x00]
         var i = 0

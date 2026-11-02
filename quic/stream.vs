@@ -39,7 +39,7 @@ public struct QuicStream {
     }
 
     /// Appends data to be sent on this stream.
-    public mutating func Write(_ data: [uint8]) async throws {
+    public mutating func Write(data: [uint8]) async throws {
         if self.IsClosed || self.SendFin {
             throw QuicError.transport(code: TransportErrorCode.StreamStateError, msg: "Cannot write to closed stream")
         }
@@ -50,7 +50,7 @@ public struct QuicStream {
     }
 
     /// Writes data and terminates the sending side of this stream (FIN bit).
-    public mutating func WriteAndClose(_ data: [uint8]) async throws {
+    public mutating func WriteAndClose(data: [uint8]) async throws {
         if self.IsClosed || self.SendFin {
             throw QuicError.transport(code: TransportErrorCode.StreamStateError, msg: "Cannot write to closed stream")
         }

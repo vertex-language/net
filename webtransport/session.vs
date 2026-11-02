@@ -123,7 +123,7 @@ public struct WebTransportSession {
     }
 
     /// Transmits an unreliable application datagram (RFC 9297 Section 5).
-    public mutating func SendDatagram(_ data: [uint8]) async throws {
+    public mutating func SendDatagram(data: [uint8]) async throws {
         if self.IsClosed {
             throw WebTransportError.sessionClosed(code: 0, reason: "Session is closed")
         }
@@ -165,18 +165,18 @@ public struct WebTransportSession {
     }
 
     /// Enqueues an incoming datagram directly into the session buffer.
-    public mutating func EnqueueDatagram(_ payload: [uint8]) {
+    public mutating func EnqueueDatagram(payload: [uint8]) {
         self.InboundDatagrams.append(payload)
     }
 
     /// Enqueues an incoming stream directly into the session buffer.
-    public mutating func EnqueueStream(_ stream: WebTransportStream) {
+    public mutating func EnqueueStream(stream: WebTransportStream) {
         self.InboundStreams.append(stream)
         self.TrackedStreamIds.append(stream.StreamId)
     }
 
     /// Enqueues an incoming uni stream directly into the session buffer.
-    public mutating func EnqueueUniStream(_ stream: WebTransportReceiveStream) {
+    public mutating func EnqueueUniStream(stream: WebTransportReceiveStream) {
         self.InboundUniStreams.append(stream)
         self.TrackedStreamIds.append(stream.StreamId)
     }

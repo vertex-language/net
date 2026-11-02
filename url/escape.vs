@@ -5,7 +5,7 @@ package url
 
 /// Whether a byte stands for itself in a path segment: unreserved, and
 /// the sub-delimiters, ':' and '@'.
-func pathSafe(_ c: uint8) -> bool {
+func pathSafe(c: uint8) -> bool {
     if unreserved(c) { return true }
     switch c {
     case 33, 36, 38, 39, 40, 41, 42, 43, 44, 59, 61, 58, 64: return true   // ! $ & ' ( ) * + , ; = : @
@@ -14,13 +14,13 @@ func pathSafe(_ c: uint8) -> bool {
 }
 
 /// Letters, digits, - . _ ~
-func unreserved(_ c: uint8) -> bool {
+func unreserved(c: uint8) -> bool {
     return isAlpha(c) || isDigit(c) || c == 45 || c == 46 || c == 95 || c == 126
 }
 
 let hexDigits: [uint8] = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 65, 66, 67, 68, 69, 70]
 
-func escape(_ s: string, _ safe: (uint8) -> bool, spaceAsPlus: bool) -> string {
+func escape(s: string, safe: (uint8) -> bool, spaceAsPlus: bool) -> string {
     var out: [uint8] = []
     var changed = false
     for c in s.utf8 {
@@ -40,24 +40,24 @@ func escape(_ s: string, _ safe: (uint8) -> bool, spaceAsPlus: bool) -> string {
 }
 
 /// A string escaped to be one path segment: '/' is escaped too.
-public func PathEscape(_ s: string) -> string {
+public func PathEscape(s: string) -> string {
     return escape(s, { c in pathSafe(c) && c != 47 }, spaceAsPlus: false)
 }
 
 /// A string escaped to be a query key or value, as forms send it:
 /// spaces become '+'.
-public func QueryEscape(_ s: string) -> string {
+public func QueryEscape(s: string) -> string {
     return escape(s, unreserved, spaceAsPlus: true)
 }
 
-func hexValue(_ c: uint8) -> int {
+func hexValue(c: uint8) -> int {
     if c >= 48 && c <= 57 { return int(c) - 48 }
     if c >= 65 && c <= 70 { return int(c) - 55 }
     if c >= 97 && c <= 102 { return int(c) - 87 }
     return -1
 }
 
-func unescape(_ s: string, plusAsSpace: bool) -> string {
+func unescape(s: string, plusAsSpace: bool) -> string {
     let b = [uint8](s.utf8)
     var out: [uint8] = []
     var i = 0
@@ -87,11 +87,11 @@ func unescape(_ s: string, plusAsSpace: bool) -> string {
 
 /// A path's %XX sequences decoded. A '%' not followed by two hex digits
 /// is kept, as browsers keep it.
-public func PathUnescape(_ s: string) -> string {
+public func PathUnescape(s: string) -> string {
     return unescape(s, plusAsSpace: false)
 }
 
 /// A query key or value decoded: %XX, and '+' as a space.
-public func QueryUnescape(_ s: string) -> string {
+public func QueryUnescape(s: string) -> string {
     return unescape(s, plusAsSpace: true)
 }

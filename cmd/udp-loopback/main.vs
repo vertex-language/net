@@ -5,7 +5,7 @@ import "net/udp"
 
 var failures = 0
 
-func check(_ ok: bool, _ what: string) {
+func check(ok: bool, what: string) {
     if ok {
         print("ok    \(what)")
     } else {
@@ -14,7 +14,7 @@ func check(_ ok: bool, _ what: string) {
     }
 }
 
-func same(_ buf: [uint8], _ count: int, _ text: string) -> bool {
+func same(buf: [uint8], count: int, text: string) -> bool {
     var i = 0
     for b in text.utf8 {
         if i >= count || buf[i] != b {

@@ -40,7 +40,7 @@ public struct TcpListener {
 
 /// Listens on an address written as text: "127.0.0.1:8080", ":8080" for
 /// every interface, "[::1]:9000", or a port of 0 to be given a free one.
-public func Listen(_ address: string,
+public func Listen(address: string,
                    options: ListenerOptions = .default) throws -> TcpListener {
     let parsed = try SocketAddress.Parse(address)
     return try Listen(host: parsed.Host(), port: parsed.Port(), options: options)
@@ -116,7 +116,7 @@ public func (l: borrowing TcpListener) Accept() async throws -> TcpStream {
 /// `Serve` returns only by throwing, which is what a listener that has
 /// been closed, or an accept that failed for good, does.
 public func (l: borrowing TcpListener) Serve(
-    _ handler: @escaping (TcpStream) async -> Void) async throws {
+    handler: @escaping (TcpStream) async -> Void) async throws {
     let port = l.LocalAddress.Port()
     let host = l.LocalAddress.Host()
 

@@ -80,7 +80,7 @@ public func BuildCloseSessionCapsule(code: uint32, reason: string) -> [uint8] {
 }
 
 /// Parses a CLOSE_WEBTRANSPORT_SESSION capsule payload into SessionCloseInfo.
-public func ParseCloseSessionPayload(_ payload: [uint8]) throws -> SessionCloseInfo {
+public func ParseCloseSessionPayload(payload: [uint8]) throws -> SessionCloseInfo {
     if payload.count < 4 {
         throw WebTransportError.protocolViolation("CLOSE_WEBTRANSPORT_SESSION payload must be at least 4 bytes")
     }
